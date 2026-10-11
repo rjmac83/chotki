@@ -46,6 +46,7 @@ class SampleBridge final : public QObject {
     Q_PROPERTY(QVariantList prayerChoices MEMBER prayerChoices CONSTANT)
     Q_PROPERTY(QVariantList prayerWords MEMBER prayerWords CONSTANT)
     Q_PROPERTY(bool openingReady MEMBER openingReady CONSTANT)
+    Q_PROPERTY(bool needsWelcome MEMBER needsWelcome CONSTANT)
 
 public:
     SampleBridge() {
@@ -92,6 +93,7 @@ public:
     QVariantList prayerChoices;
     QVariantList prayerWords;
     bool openingReady = false;
+    bool needsWelcome = false;
     QString selectedDay;
     QString toggledRule;
     int shiftedDirection = 0;

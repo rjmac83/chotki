@@ -93,6 +93,10 @@ private slots:
         const auto session = openSession(program);
         QVERIFY(session && session->window);
         QTRY_VERIFY_WITH_TIMEOUT(session->bridge->snapshotReady(), 8000);
+        if (session->bridge->needsWelcome()) {
+            session->bridge->saveSettings({{QStringLiteral("welcome"), true}});
+            QTRY_VERIFY_WITH_TIMEOUT(!session->bridge->needsWelcome(), 8000);
+        }
         QVERIFY(session->bridge->entries().isEmpty());
 
         QQuickItem *add = nullptr;

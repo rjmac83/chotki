@@ -15,7 +15,7 @@ qt_add_qml_module(chotki-linux
     URI ChotkiLinux
     VERSION 1.0
     RESOURCE_PREFIX "/qt/qml"
-    QML_FILES Main.qml Home.qml Prayers.qml Reading.qml Psalter.qml Library.qml Editor.qml Progress.qml Glossary.qml OpeningMark.qml Icon.qml
+    QML_FILES Main.qml Home.qml Prayers.qml Reading.qml Psalter.qml Library.qml Editor.qml Progress.qml Glossary.qml Settings.qml Onboarding.qml OpeningMark.qml Icon.qml
     RESOURCES fonts/XCharter-Roman.otf fonts/XCharter-Bold.otf
 )
 target_link_libraries(chotki-linux PRIVATE Qt6::Quick Qt6::Network)
@@ -71,6 +71,13 @@ target_include_directories(chotki-library-test PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 target_compile_definitions(chotki-library-test PRIVATE CHOTKI_QML_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/Main.qml")
 add_test(NAME library COMMAND chotki-library-test)
 set_tests_properties(library PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(chotki-settings-test tests/SettingsTest.cpp Bridge.cpp Bridge.h ArtworkImage.cpp ArtworkImage.h)
+target_link_libraries(chotki-settings-test PRIVATE Qt6::Quick Qt6::Test)
+target_include_directories(chotki-settings-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(chotki-settings-test PRIVATE CHOTKI_QML_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/Main.qml")
+add_test(NAME settings COMMAND chotki-settings-test)
+set_tests_properties(settings PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(chotki-bridge-restart-test tests/BridgeRestartTest.cpp Bridge.cpp Bridge.h)
 target_link_libraries(chotki-bridge-restart-test PRIVATE Qt6::Core Qt6::Test)

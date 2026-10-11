@@ -271,7 +271,7 @@ private func reconcileObservances(_ store: SQLiteStore) throws {
     try store.saveSettings(settings)
 }
 
-private func preserveFatherName(_ former: String, store: SQLiteStore) throws {
+func preserveFatherName(_ former: String, store: SQLiteStore) throws {
     for var rule in try store.rules(includeArchived: true) where rule.givenByPriest == true {
         let recorded = rule.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard recorded.isEmpty || recorded == "the library" else { continue }

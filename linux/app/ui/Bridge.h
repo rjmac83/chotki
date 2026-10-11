@@ -99,6 +99,11 @@ class Bridge final : public QObject {
     Q_PROPERTY(QString glossaryQuery READ glossaryQuery NOTIFY changed)
     Q_PROPERTY(QVariantList glossaryCategories READ glossaryCategories NOTIFY changed)
     Q_PROPERTY(QVariantMap glossaryEntry READ glossaryEntry NOTIFY changed)
+    Q_PROPERTY(bool needsWelcome READ needsWelcome NOTIFY changed)
+    Q_PROPERTY(bool reducedMotion READ reducedMotion NOTIFY changed)
+    Q_PROPERTY(int motionEvent READ motionEvent NOTIFY changed)
+    Q_PROPERTY(bool settingsReady READ settingsReady NOTIFY changed)
+    Q_PROPERTY(QVariantMap settings READ settings NOTIFY changed)
 
 public:
     Bridge(QString program, bool review, QObject *parent = nullptr);
@@ -193,6 +198,11 @@ public:
     QString glossaryQuery() const { return m_glossaryQuery; }
     QVariantList glossaryCategories() const { return m_glossaryCategories; }
     QVariantMap glossaryEntry() const { return m_glossaryEntry; }
+    bool needsWelcome() const { return m_needsWelcome; }
+    bool reducedMotion() const { return m_reducedMotion; }
+    int motionEvent() const { return m_motionEvent; }
+    bool settingsReady() const { return m_settingsReady; }
+    QVariantMap settings() const { return m_settings; }
 
     bool snapshotReady() const { return m_snapshotReady; }
     qint64 helperProcessId() const { return m_process.processId(); }
@@ -216,6 +226,10 @@ public:
     Q_INVOKABLE void showReading();
     Q_INVOKABLE void showProgress();
     Q_INVOKABLE void showGlossary(const QString &slug, const QString &query);
+    Q_INVOKABLE void showSettings();
+    Q_INVOKABLE void saveSettings(const QVariantMap &fields);
+    Q_INVOKABLE void exportBackup(const QString &path);
+    Q_INVOKABLE void importBackup(const QString &path);
     Q_INVOKABLE void openReading(int band);
     Q_INVOKABLE void toggleReading(int band);
     Q_INVOKABLE void finishReading(int band);
@@ -251,6 +265,7 @@ private:
     void applyEditor(const QJsonObject &editor);
     void applyProgress(const QJsonObject &progress);
     void applyGlossary(const QJsonObject &glossary);
+    void applySettings(const QJsonObject &settings);
     QString soundPlayer() const;
     int newestAcceptedId() const;
 
@@ -268,6 +283,8 @@ private:
     int m_newestLibraryId = -1;
     int m_newestProgressId = -1;
     int m_newestGlossaryId = -1;
+    int m_newestSettingsId = -1;
+    int m_newestMotionId = -1;
     double m_ropeDiameter = 240;
     int m_restarts = 0;
     bool m_snapshotReady = false;
@@ -367,4 +384,9 @@ private:
     QString m_glossaryQuery;
     QVariantList m_glossaryCategories;
     QVariantMap m_glossaryEntry;
+    bool m_needsWelcome = false;
+    bool m_reducedMotion = false;
+    int m_motionEvent = 0;
+    bool m_settingsReady = false;
+    QVariantMap m_settings;
 };

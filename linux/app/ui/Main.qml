@@ -19,6 +19,7 @@ ApplicationWindow {
     readonly property color gold: "#c9a227"
     readonly property color lineSoft: "#23252c"
     property string section: "Home"
+    property bool welcomeAsked: false
     property string glossaryReturn: "Home"
     property string glossaryPending: ""
     property bool openingPlayed: false
@@ -54,7 +55,18 @@ ApplicationWindow {
         thanksLabel.opacity = 0
     }
 
+    function welcoming() {
+        return bridge.needsWelcome === true
+    }
+
+    function ensureWelcome() {
+        if (!welcoming() || welcomeAsked) return
+        welcomeAsked = true
+        bridge.showSettings()
+    }
+
     function openGlossary(slug) {
+        if (welcoming()) return
         if (section !== "Glossary") glossaryReturn = section
         glossaryPending = slug || ""
         section = "Glossary"
@@ -66,6 +78,7 @@ ApplicationWindow {
     }
 
     function showSection(name) {
+        if (welcoming()) return
         if (name === "Glossary") {
             openGlossary("")
             return
@@ -86,6 +99,7 @@ ApplicationWindow {
     }
 
     function openCard(destination, selection, band, ruleID) {
+        if (welcoming()) return
         if (!destination || destination === "fast") return
         if (destination === "rope" || destination === "prayers") {
             openPsalter = false
@@ -126,13 +140,13 @@ ApplicationWindow {
         { heading: "Reference", items: ["Glossary", "Settings"] }
     ]
 
-    Shortcut { sequence: "Ctrl+1"; onActivated: window.section = "Home" }
+    Shortcut { sequence: "Ctrl+1"; onActivated: if (!window.welcoming()) window.section = "Home" }
     Shortcut { sequence: "Ctrl+2"; onActivated: window.showSection("Prayers") }
     Shortcut { sequence: "Ctrl+3"; onActivated: window.showSection("Reading") }
     Shortcut { sequence: "Ctrl+4"; onActivated: window.showSection("Progress") }
-    Shortcut { sequence: "Ctrl+5"; onActivated: window.section = "Library" }
+    Shortcut { sequence: "Ctrl+5"; onActivated: if (!window.welcoming()) window.section = "Library" }
     Shortcut { sequence: "Ctrl+6"; onActivated: window.showSection("Glossary") }
-    Shortcut { sequence: "Ctrl+7"; onActivated: window.section = "Settings" }
+    Shortcut { sequence: "Ctrl+7"; onActivated: window.showSection("Settings") }
 
     FontLoader { id: charter; source: "fonts/XCharter-Roman.otf" }
     FontLoader { id: charterBold; source: "fonts/XCharter-Bold.otf" }
@@ -264,7 +278,10 @@ ApplicationWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     Label {
-                        text: window.section === "Home" ? window.greeting() : window.section
+                        objectName: "page-title"
+                        text: window.welcoming()
+                              ? (bridge.settings.welcomeTitle || "Welcome")
+                              : (window.section === "Home" ? window.greeting() : window.section)
                         color: window.parchment
                         font.family: charter.status === FontLoader.Ready ? charter.name : "serif"
                         font.pixelSize: 28
@@ -282,10 +299,18 @@ ApplicationWindow {
                 }
 
                 Loader {
+                    id: welcomeLoader
+                    Layout.fillWidth: true
+                    Layout.fillHeight: active
+                    active: window.welcoming()
+                    visible: active
+                    source: "Onboarding.qml"
+                }
+                Loader {
                     id: homeLoader
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Home"
+                    active: !window.welcoming() && window.section === "Home"
                     visible: active
                     source: "Home.qml"
                 }
@@ -301,28 +326,28 @@ ApplicationWindow {
                     id: prayersLoader
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Prayers"
+                    active: !window.welcoming() && window.section === "Prayers"
                     visible: active
                     source: "Prayers.qml"
                 }
                 Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Reading"
+                    active: !window.welcoming() && window.section === "Reading"
                     visible: active
                     source: "Reading.qml"
                 }
                 Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Library"
+                    active: !window.welcoming() && window.section === "Library"
                     visible: active
                     source: "Library.qml"
                 }
                 Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Progress"
+                    active: !window.welcoming() && window.section === "Progress"
                     visible: active
                     source: "Progress.qml"
                 }
@@ -330,15 +355,25 @@ ApplicationWindow {
                     id: glossaryLoader
                     Layout.fillWidth: true
                     Layout.fillHeight: active
-                    active: window.section === "Glossary"
+                    active: !window.welcoming() && window.section === "Glossary"
                     visible: active
                     source: "Glossary.qml"
                 }
+                Loader {
+                    id: settingsLoader
+                    Layout.fillWidth: true
+                    Layout.fillHeight: active
+                    active: !window.welcoming() && window.section === "Settings"
+                    visible: active
+                    source: "Settings.qml"
+                }
 
                 ColumnLayout {
-                    visible: window.section !== "Home" && window.section !== "Prayers"
+                    visible: !window.welcoming()
+                            && window.section !== "Home" && window.section !== "Prayers"
                             && window.section !== "Reading" && window.section !== "Library"
                             && window.section !== "Progress" && window.section !== "Glossary"
+                            && window.section !== "Settings"
                     Layout.fillWidth: true
                     Layout.fillHeight: visible
                     Item { height: 46 }
@@ -401,6 +436,7 @@ ApplicationWindow {
             window.notePrayer()
             window.maybeOpen()
             window.noteThanks()
+            window.ensureWelcome()
         }
     }
 
@@ -435,5 +471,8 @@ ApplicationWindow {
         })
     }
 
-    Component.onCompleted: maybeOpen()
+    Component.onCompleted: {
+        ensureWelcome()
+        maybeOpen()
+    }
 }

@@ -198,10 +198,21 @@ private slots:
         QVERIFY(scroll);
         QTRY_VERIFY_WITH_TIMEOUT((related = findItem(window->contentItem(), "glossary-related-prayer-rule"))
                                  && related->width() > 2.0 && related->height() > 2.0, 3000);
-        if (!centerInView(scroll, related)) revealY(scroll, related);
-        QTRY_VERIFY_WITH_TIMEOUT((related = findItem(window->contentItem(), "glossary-related-prayer-rule"))
-                                 && centerInView(scroll, related), 3000);
-        click(window, related);
+        for (int attempt = 0; attempt < 4; ++attempt) {
+            if (bridge->glossaryEntry().value(QStringLiteral("term")).toString() == QStringLiteral("Prayer rule"))
+                break;
+            scroll = findItem(window->contentItem(), QStringLiteral("glossary-scroll"));
+            related = findItem(window->contentItem(), QStringLiteral("glossary-related-prayer-rule"));
+            if (!scroll || !related) {
+                QTest::qWait(50);
+                continue;
+            }
+            if (!centerInView(scroll, related)) revealY(scroll, related);
+            related = findItem(window->contentItem(), QStringLiteral("glossary-related-prayer-rule"));
+            scroll = findItem(window->contentItem(), QStringLiteral("glossary-scroll"));
+            if (related && scroll && centerInView(scroll, related)) click(window, related);
+            QTest::qWait(200);
+        }
         QTRY_COMPARE_WITH_TIMEOUT(glossaryState(window, bridge),
                                   QStringLiteral("Prayer rule|Prayer rule|Glossary"), 8000);
 

@@ -143,6 +143,8 @@ Settings sections, in the Mac's order: You, Your Church, The Calendar, Reminders
 
 **Gate.** A temporary normal record can set a name and a church, export, import into a second empty directory, and see the merged rules. Reduced motion persists across a helper restart.
 
+**Checked on the ARM64 guest (2026-10-11):** a temporary normal record opened on Welcome. The paragraphs included "not a substitute for a priest." The name Helen and the Romanian Orthodox Church continued onto Home, and the greeting contained Helen. Settings showed the Orthodox Church in America akathist note for that church. Reduced motion stayed on after the helper was killed, and the motion counter advanced, so the switch was read from the new helper. The bridge check exported that record, imported it into a second empty directory, and kept both a morning rule and an evening rule added after the first import. A relative backup path was refused. Reduced motion was still on when a new helper opened the same directory, and the daily backup file was under that record's backups directory. Home shows the clock style the record stores. The review morning times stayed 07:00 and 08:00. The sidebar test, the rope, reading, home actions, progress, the glossary, the library, four helper restarts, an offscreen window, and a 1100×860 review screenshot of 511232 bytes still passed. The Ubuntu 24.04 `amd64` half of this gate is the GitHub workflow.
+
 ### 2.9 Visual pass
 
 Do this after the screens exist, so the pass covers the real window.
@@ -209,4 +211,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-Slice 2.8, when that work is asked for. Slices 2.1 through 2.7 are recorded above.
+Slice 2.9, when that work is asked for. Slices 2.1 through 2.8 are recorded above.

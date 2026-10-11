@@ -30,6 +30,9 @@ enum BridgeError: Error, CustomStringConvertible {
     case unknownPrayer
     case unnamedRule
     case unknownTerm
+    case backupPath
+    case backupRead
+    case backupWrite
 
     var description: String {
         switch self {
@@ -43,6 +46,9 @@ enum BridgeError: Error, CustomStringConvertible {
         case .unknownPrayer: "That prayer is not in the book."
         case .unnamedRule: "Give the rule a name before saving."
         case .unknownTerm: "That term is not in the glossary."
+        case .backupPath: "The backup path must be an absolute path."
+        case .backupRead: "Could not read that backup."
+        case .backupWrite: "Could not write that backup."
         }
     }
 }
@@ -138,7 +144,7 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
     let entries: [EntryPayload] = practice.entries(on: selectedDate).map { entry in
         let summary = RuleLibrary.shared.templates.first { $0.title == entry.rule.title }?.summary
             ?? entry.rule.note ?? "A rule of your own."
-        let time = entry.rule.timeOfDay.map { String(format: "%02d:%02d", $0.hour, $0.minute) }
+        let time = entry.rule.timeOfDay.map { Format.time($0, settings.clockStyle) }
         let face = cardFace(entry, summary: summary, tradition: settings.jurisdiction.tradition)
         return EntryPayload(
             id: entry.rule.id.uuidString, title: entry.rule.title,
@@ -159,10 +165,13 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
     let week: [WeekDayPayload] = (-3...3).map { offset in
         let date = weekCenter.adding(days: offset)
         let day = liturgical.cachedDay(for: date)
+        let feast = settings.observances.feasts.isVisible && day?.isGreatFeast == true
+        let fast = settings.observances.fasting.isVisible && day?.isFast == true
+            && date.weekday != .sunday && !feast
         return WeekDayPayload(
             date: date.iso, day: date.day, weekday: date.weekday.rawValue,
-            selected: date == selectedDate, fast: day?.isFast ?? false,
-            feast: day?.isGreatFeast ?? false, settled: weekPractice.isSettled(on: date)
+            selected: date == selectedDate, fast: fast, feast: feast,
+            settled: weekPractice.isSettled(on: date)
         )
     }
     let saying = PatristicReadings.shared.reading(for: selectedDate)
@@ -177,7 +186,9 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
         dayTitle: liturgicalDay?.title ?? "", observedDate: liturgicalDay?.observedDate.iso ?? "",
         showOldStyleDates: settings.showOldStyleDates, sayingText: saying?.text ?? "",
         sayingAuthor: saying?.author ?? "", sayingSource: saying?.source ?? "",
-        todayLink: link?.text
+        todayLink: link?.text,
+        needsWelcome: try needsWelcome(settings, store: store),
+        reducedMotion: readReducedMotion()
     )
 }
 
@@ -206,6 +217,7 @@ guard CommandLine.arguments.count == 2,
 
 do {
     let directory = try dataDirectory(for: mode)
+    recordDirectory = directory
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let store = try SQLiteStore(path: directory.appendingPathComponent("chotki.sqlite").path)
 
@@ -234,6 +246,8 @@ do {
                 }
             }
         }
+    } else {
+        writeDailyBackup(store)
     }
 
     var selectedDate = CalendarDate(Date(), in: .current)
@@ -353,6 +367,9 @@ do {
 
             case "glossary":
                 try performGlossary(request, store: store)
+
+            case "settings", "saveSettings", "exportBackup", "importBackup":
+                try performSettings(request, store: store, on: selectedDate, weekCenter: weekCenter)
 
             case "opening":
                 respond(openingSuccess(id: id))

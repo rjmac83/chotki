@@ -607,6 +607,74 @@ def main():
         assert body["figureNote"] == "Kept, over the 30 days to then"
         close(progress)
 
+    with tempfile.TemporaryDirectory(prefix="chotki-settings-a-") as first, \
+            tempfile.TemporaryDirectory(prefix="chotki-settings-b-") as second:
+        environment = os.environ.copy()
+        environment["XDG_DATA_HOME"] = first
+        origin, ask = conversation(helper, "--normal", environment)
+        opened = ask("snapshot")
+        assert opened["needsWelcome"] is True
+        assert opened["reducedMotion"] is False
+        fresh = ask("settings")
+        for home_key in ("entries", "week", "selectedDate", "displayName", "today"):
+            assert home_key not in fresh, fresh
+        page = fresh["settings"]
+        assert page["church"] == "" and page["followed"] == "Orthodox Church in America"
+        assert page["noChurch"] == "I don't have a church affiliation yet."
+        assert "Romanian Orthodox Church" in page["churches"]
+        assert page["welcomeTitle"] == "Welcome"
+        assert page["beginLabel"] == "Continue"
+        assert any("not a substitute for a priest" in "".join(span["text"] for span in paragraph["spans"])
+                   for paragraph in page["welcomeParagraphs"])
+        assert page["fasting"] == "shown" and page["feasts"] == "shown"
+        assert page["version"] == "Linux alpha 0.1.0~alpha1"
+        assert page["backupDirectory"].endswith("/Chotki/backups")
+        saved = ask("saveSettings", name="Helen", church="Romanian Orthodox Church", welcome=True)
+        assert saved["displayName"] == "Helen" and saved["needsWelcome"] is False
+        assert "Orthodox Church in America" in saved["settings"]["akathistNote"]
+        assert saved["settings"]["church"] == "Romanian Orthodox Church"
+        ask("prepareTemplate", template="morning-prayers")
+        made = ask("saveRule")
+        assert any(item["title"] == "Morning prayers" for item in made["entries"])
+        again = ask("snapshot")
+        assert again["needsWelcome"] is False
+        backup = str(Path(first) / "helen.json")
+        exported = ask("exportBackup", path=backup)
+        assert "entries" not in exported and "week" not in exported
+        assert exported["settings"]["notice"] == "Backup written to helen.json."
+        assert Path(backup).is_file()
+        quiet = ask("saveSettings", motion=True)
+        assert quiet["reducedMotion"] is True and quiet["settings"]["reducedMotion"] is True
+        close(origin)
+
+        reopened, ask = conversation(helper, "--normal", environment)
+        remembered = ask("settings")["settings"]
+        assert remembered["reducedMotion"] is True
+        assert remembered["displayName"] == "Helen"
+        assert remembered["church"] == "Romanian Orthodox Church"
+        close(reopened)
+        copies = list((Path(first) / "Chotki" / "backups").glob("chotki-*.json"))
+        assert copies, "a day with rules keeps one backup beside the record"
+
+        other = os.environ.copy()
+        other["XDG_DATA_HOME"] = second
+        restored, ask = conversation(helper, "--normal", other)
+        assert ask("snapshot")["needsWelcome"] is True
+        merged = ask("importBackup", path=backup)
+        titles = [item["title"] for item in merged["entries"]]
+        assert titles.count("Morning prayers") == 1
+        assert merged["displayName"] == "Helen"
+        assert merged["settings"]["church"] == "Romanian Orthodox Church"
+        assert merged["needsWelcome"] is False
+        ask("prepareTemplate", template="evening-prayers")
+        ask("saveRule")
+        kept = ask("importBackup", path=backup)
+        titles = [item["title"] for item in kept["entries"]]
+        assert "Morning prayers" in titles and "Evening prayers" in titles
+        refused = ask("exportBackup", path="relative.json")
+        assert refused["ok"] is False
+        close(restored)
+
     print("Swift bridge review actions and normal-data isolation passed")
 
 

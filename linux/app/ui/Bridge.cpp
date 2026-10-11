@@ -128,6 +128,12 @@ struct BridgeResponse {
     QJsonObject progress;
     bool hasGlossary = false;
     QJsonObject glossary;
+    bool hasSettings = false;
+    QJsonObject settings;
+    bool hasNeedsWelcome = false;
+    bool needsWelcome = false;
+    bool hasReducedMotion = false;
+    bool reducedMotion = false;
     bool hasTodayLink = false;
     QString todayLink;
     bool hasThanksgiving = false;
@@ -184,6 +190,12 @@ BridgeResponse decodeResponse(const QJsonObject &object) {
     response.progress = object.value("progress").toObject();
     response.hasGlossary = object.contains("glossary");
     response.glossary = object.value("glossary").toObject();
+    response.hasSettings = object.contains("settings");
+    response.settings = object.value("settings").toObject();
+    response.hasNeedsWelcome = object.contains("needsWelcome");
+    response.needsWelcome = object.value("needsWelcome").toBool();
+    response.hasReducedMotion = object.contains("reducedMotion");
+    response.reducedMotion = object.value("reducedMotion").toBool();
     response.hasTodayLink = object.contains("todayLink");
     response.todayLink = object.value("todayLink").toString();
     response.hasThanksgiving = object.contains("thanksgiving");
@@ -267,6 +279,20 @@ void Bridge::showGlossary(const QString &slug, const QString &query) {
     if (!slug.isEmpty()) fields.insert(QStringLiteral("slug"), slug);
     if (!query.isEmpty()) fields.insert(QStringLiteral("query"), query);
     send(QStringLiteral("glossary"), fields);
+}
+
+void Bridge::showSettings() { send(QStringLiteral("settings")); }
+
+void Bridge::saveSettings(const QVariantMap &fields) {
+    send(QStringLiteral("saveSettings"), QJsonObject::fromVariantMap(fields));
+}
+
+void Bridge::exportBackup(const QString &path) {
+    send(QStringLiteral("exportBackup"), QJsonObject{{QStringLiteral("path"), path}});
+}
+
+void Bridge::importBackup(const QString &path) {
+    send(QStringLiteral("importBackup"), QJsonObject{{QStringLiteral("path"), path}});
 }
 
 void Bridge::prepareTemplate(const QString &templateID) {
@@ -434,6 +460,13 @@ void Bridge::applyGlossary(const QJsonObject &glossary) {
     m_glossaryReady = true;
 }
 
+void Bridge::applySettings(const QJsonObject &settings) {
+    m_settings = settings.toVariantMap();
+    m_settingsReady = true;
+    if (settings.contains(QStringLiteral("reducedMotion")))
+        m_reducedMotion = settings.value(QStringLiteral("reducedMotion")).toBool();
+}
+
 void Bridge::applyTones(const QJsonObject &tones) {
     m_tickWav = tones.value("tick").toString();
     m_tockWav = tones.value("tock").toString();
@@ -443,7 +476,7 @@ void Bridge::applyTones(const QJsonObject &tones) {
 int Bridge::newestAcceptedId() const {
     return std::max({m_newestSuccessId, m_newestPrayerId, m_newestOpeningId, m_newestToneId,
                      m_newestReadingId, m_newestPsalterId, m_newestLibraryId, m_newestProgressId,
-                     m_newestGlossaryId});
+                     m_newestGlossaryId, m_newestSettingsId, m_newestMotionId});
 }
 
 void Bridge::readResponses() {
@@ -527,6 +560,20 @@ void Bridge::readResponses() {
             applyGlossary(response.glossary);
             m_error.clear();
         }
+        // Settings are not a day. A read or an export must not be treated as one.
+        // Reduced motion is stored with the record, so the snapshot after a
+        // helper restart carries it on its own.
+        if (response.hasSettings && response.id >= m_newestSettingsId) {
+            m_newestSettingsId = response.id;
+            applySettings(response.settings);
+            m_error.clear();
+        }
+        if (response.hasReducedMotion && response.id >= m_newestMotionId) {
+            m_newestMotionId = response.id;
+            m_reducedMotion = response.reducedMotion;
+            ++m_motionEvent;
+            m_error.clear();
+        }
         if (!response.home || response.id < m_newestSuccessId) {
             emit changed();
             continue;
@@ -555,6 +602,7 @@ void Bridge::readResponses() {
         if (response.hasEntries) m_entries = response.entries;
         if (response.hasWeek) m_week = response.week;
         if (response.hasPsalmOneVerses) m_psalmOneVerses = response.psalmOneVerses;
+        if (response.hasNeedsWelcome) m_needsWelcome = response.needsWelcome;
         // A day snapshot omits todayLink when the selected day is today.
         // Thanksgiving is a single event: a later snapshot that leaves the key
         // out must not wipe the line already on screen.

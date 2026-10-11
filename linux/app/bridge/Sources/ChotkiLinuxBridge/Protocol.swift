@@ -60,6 +60,33 @@ struct BridgeRequest: Decodable {
     var days: Int?
     /// A glossary slug for `glossary`. Omitted opens the index.
     var slug: String?
+    /// The named church for `saveSettings`. Empty says there is none.
+    var church: String?
+    /// A `Reckoning` raw value.
+    var reckoning: String?
+    /// `hidden`, `shown`, or `observed`.
+    var fasting: String?
+    var feasts: String?
+    /// A `ClockStyle` raw value.
+    var clock: String?
+    /// The reminder master switch. Delivery is a later slice.
+    var notifications: Bool?
+    /// A `ReminderLead` raw value.
+    var lead: Int?
+    var chime: Bool?
+    var tick: Bool?
+    /// The consistency figure. Words stay either way.
+    var showFigure: Bool?
+    /// Linux-only. The opening mark still follows the desktop on the next process.
+    var motion: Bool?
+    /// An absolute path for `exportBackup` or `importBackup`.
+    var path: String?
+    /// Completes the first run. The library is where a rule is chosen.
+    var welcome: Bool?
+    /// The spiritual father's name. Empty clears it and keeps names already on rules.
+    var father: String?
+    /// Show the Julian date beside the civil one.
+    var showOldStyleDates: Bool?
 }
 
 struct PrayerKnotPayload: Encodable {
@@ -336,6 +363,12 @@ struct BridgeSuccess: Encodable {
     var progress: ProgressPayload? = nil
     /// The glossary. Not a home snapshot, and not a ruling.
     var glossary: GlossaryPayload? = nil
+    /// Settings and the welcome. A read or an export is not a home snapshot.
+    var settings: SettingsPayload? = nil
+    /// True only while the record has no rules and the welcome has not been finished.
+    var needsWelcome: Bool? = nil
+    /// Stored beside the record, so a helper restart still knows.
+    var reducedMotion: Bool? = nil
 }
 
 struct ProgressRulePayload: Encodable {
@@ -376,6 +409,8 @@ struct HomeSnapshot {
     var sayingAuthor: String
     var sayingSource: String
     var todayLink: String?
+    var needsWelcome: Bool
+    var reducedMotion: Bool
 
     func success(id: Int, today: String) -> BridgeSuccess {
         BridgeSuccess(
@@ -385,7 +420,7 @@ struct HomeSnapshot {
             dayTitle: dayTitle, observedDate: observedDate,
             showOldStyleDates: showOldStyleDates, sayingText: sayingText,
             sayingAuthor: sayingAuthor, sayingSource: sayingSource,
-            todayLink: todayLink
+            todayLink: todayLink, needsWelcome: needsWelcome, reducedMotion: reducedMotion
         )
     }
 }
