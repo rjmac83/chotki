@@ -148,6 +148,12 @@ Item {
             blocking: true
             onWheel: function(event) { progress.roll(event) }
         }
+        EdgeFade {
+            y: reportScroll.contentY
+            width: reportScroll.width
+            height: reportScroll.height
+            z: 8
+        }
     }
 
     // The day's saying pans. This pane does not.

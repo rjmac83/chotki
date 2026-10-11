@@ -106,6 +106,7 @@ Item {
     }
 
     Flickable {
+        id: editorScroll
         objectName: "editor-scroll"
         anchors.fill: parent
         contentWidth: width
@@ -346,6 +347,12 @@ Item {
                     MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: bridge.removeRule(form.ruleId, "wholeSeries") }
                 }
             }
+        }
+        EdgeFade {
+            y: editorScroll.contentY
+            width: editorScroll.width
+            height: editorScroll.height
+            z: 8
         }
     }
 }

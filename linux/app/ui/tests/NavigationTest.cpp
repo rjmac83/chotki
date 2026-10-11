@@ -23,6 +23,11 @@ class SampleBridge final : public QObject {
     Q_PROPERTY(QString sayingAuthor MEMBER sayingAuthor CONSTANT)
     Q_PROPERTY(QString sayingSource MEMBER sayingSource CONSTANT)
     Q_PROPERTY(QString artworkUrl MEMBER artworkUrl CONSTANT)
+    Q_PROPERTY(QString artworkName MEMBER artworkName CONSTANT)
+    Q_PROPERTY(double sayingPanStart MEMBER sayingPanStart CONSTANT)
+    Q_PROPERTY(bool reducedMotion MEMBER reducedMotion CONSTANT)
+    Q_PROPERTY(QVariantList month MEMBER month CONSTANT)
+    Q_PROPERTY(QString monthTitle MEMBER monthTitle CONSTANT)
     Q_PROPERTY(QVariantList entries MEMBER entries CONSTANT)
     Q_PROPERTY(QVariantList week MEMBER week NOTIFY changed)
     Q_PROPERTY(QString todayLink MEMBER todayLink NOTIFY changed)
@@ -70,6 +75,11 @@ public:
     QString sayingAuthor = "A father";
     QString sayingSource = "A source";
     QString artworkUrl;
+    QString artworkName;
+    double sayingPanStart = -1;
+    bool reducedMotion = false;
+    QVariantList month;
+    QString monthTitle;
     QVariantList entries;
     QVariantList week;
     QString todayLink;
@@ -113,6 +123,9 @@ public:
     Q_INVOKABLE void markKeptLate(const QString &) {}
     Q_INVOKABLE void standDownDay(const QString &) {}
     Q_INVOKABLE void openEditor(const QString &) {}
+    Q_INVOKABLE void setMonthShown(bool) {}
+    Q_INVOKABLE void shiftMonth(int) {}
+    Q_INVOKABLE void noteSayingPan(const QString &) {}
     Q_INVOKABLE void shiftWeek(int direction) {
         shiftedDirection = direction;
         week[0] = QVariantMap{{"date", "2026-10-14"}, {"day", 14},

@@ -75,6 +75,93 @@ Item {
     property string watchedDate: bridge.selectedDate || ""
     onWatchedDateChanged: home.hideMenu()
 
+    readonly property bool monthBeside: width >= 660
+    property bool toldMonth: false
+    property real panProgress: bridge.review || bridge.reducedMotion === true ? 1 : 0
+    property string panKey: (bridge.selectedDate || "") + "|" + (bridge.artworkName || "")
+    property string notedKey: ""
+    property real panClock: 0
+
+    function tellMonth() {
+        if (!bridge.connected || !bridge.setMonthShown) return
+        bridge.setMonthShown(home.monthBeside)
+    }
+    onMonthBesideChanged: home.tellMonth()
+
+    function settlePan() {
+        // Review and a screenshot stay on the resting crop and do not write
+        // the sidecar. Reduced motion still records the start, as the Mac
+        // does, and the picture jumps to that crop.
+        if (bridge.review) {
+            panAnim.stop()
+            panProgress = 1
+            return
+        }
+        const resting = bridge.reducedMotion === true
+        if (resting) {
+            panAnim.stop()
+            panProgress = 1
+        }
+        const name = bridge.artworkName || ""
+        if (!name.length || !bridge.connected || !bridge.noteSayingPan) return
+        if (notedKey === panKey && bridge.sayingPanStart > 0) {
+            if (!resting) home.applyPanClock()
+            return
+        }
+        notedKey = panKey
+        bridge.noteSayingPan(name)
+    }
+    function applyPanClock() {
+        if (bridge.review || bridge.reducedMotion === true) {
+            panAnim.stop()
+            panProgress = 1
+            return
+        }
+        if (notedKey !== panKey) return
+        const start = bridge.sayingPanStart
+        if (!(start > 0)) return
+        if (panClock === start) return
+        const duration = 2 * 36 / 1.15 / 2
+        const elapsed = Date.now() / 1000 - start
+        const begun = Math.max(0, Math.min(1, elapsed / duration))
+        panAnim.stop()
+        panClock = start
+        panProgress = begun
+        if (begun >= 1) return
+        panAnim.from = begun
+        panAnim.to = 1
+        panAnim.duration = (1 - begun) * duration * 1000
+        panAnim.start()
+    }
+    onPanKeyChanged: {
+        panClock = 0
+        notedKey = ""
+        panAnim.stop()
+        panProgress = bridge.review || bridge.reducedMotion === true ? 1 : 0
+        home.settlePan()
+    }
+
+    Connections {
+        target: bridge
+        function onChanged() {
+            if (bridge.connected && !home.toldMonth) {
+                home.toldMonth = true
+                home.tellMonth()
+            }
+            home.applyPanClock()
+        }
+    }
+    NumberAnimation {
+        id: panAnim
+        target: home
+        property: "panProgress"
+        easing.type: Easing.InOutCubic
+    }
+
+    readonly property color ochre: "#a63a38"
+    readonly property color fastFill: "#3b3454"
+    readonly property color ground: "#15161c"
+
     Column {
         id: mast
         width: parent.width
@@ -141,7 +228,7 @@ Item {
                             width: 42
                             height: 53
                             radius: 13
-                            color: modelData.fast ? "#3b344f" : modelData.selected ? "#16181e" : "#1e2029"
+                            color: modelData.fast ? home.fastFill : modelData.selected ? home.ground : Qt.rgba(0.082, 0.086, 0.110, 0.65)
                             border.width: modelData.selected ? 1 : 0
                             border.color: home.gold
 
@@ -157,7 +244,7 @@ Item {
                                 }
                                 Label {
                                     text: modelData.day
-                                    color: modelData.feast ? home.gold : home.parchment
+                                    color: modelData.feast ? home.gold : (modelData.weekday === 1 ? home.ochre : home.parchment)
                                     font.pixelSize: 16
                                     font.weight: Font.Medium
                                     horizontalAlignment: Text.AlignHCenter
@@ -207,12 +294,144 @@ Item {
                 }
             }
     }
-    Flickable {
-        id: page
+    Item {
+        id: body
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: mast.bottom
         anchors.bottom: parent.bottom
+
+        Item {
+            id: monthPane
+            objectName: "month-pane"
+            width: home.monthBeside ? Math.min(340, Math.max(280, body.width * 0.36)) : 0
+            height: parent.height
+            visible: width > 0
+
+            Label {
+                id: monthTitle
+                objectName: "month-title"
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 8
+                width: parent.width - 72
+                text: bridge.monthTitle || ""
+                color: home.parchment
+                font.pixelSize: 13
+                font.weight: Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+            Label {
+                objectName: "month-previous"
+                x: 0
+                y: 4
+                width: 28
+                height: 28
+                text: "‹"
+                color: home.gold
+                font.pixelSize: 16
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                MouseArea { anchors.fill: parent; onClicked: bridge.shiftMonth(-1) }
+            }
+            Label {
+                objectName: "month-next"
+                anchors.right: parent.right
+                y: 4
+                width: 28
+                height: 28
+                text: "›"
+                color: home.gold
+                font.pixelSize: 16
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                MouseArea { anchors.fill: parent; onClicked: bridge.shiftMonth(1) }
+            }
+            Row {
+                y: 36
+                width: parent.width
+                spacing: 0
+                Repeater {
+                    model: ["S", "M", "T", "W", "T", "F", "S"]
+                    delegate: Label {
+                        required property string modelData
+                        width: monthPane.width / 7
+                        text: modelData
+                        color: home.muted
+                        font.pixelSize: 10
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+            }
+            Item {
+                id: monthGrid
+                objectName: "month-grid"
+                y: 54
+                width: parent.width
+                height: 186
+                readonly property real cellW: width / 7
+                readonly property real cellH: 31
+                Repeater {
+                    model: bridge.month
+                    delegate: Item {
+                        required property var modelData
+                        required property int index
+                        objectName: modelData.inMonth ? ("month-day-" + modelData.date) : ""
+                        visible: !!modelData.inMonth
+                        x: (index % 7) * monthGrid.cellW
+                        y: Math.floor(index / 7) * monthGrid.cellH
+                        width: monthGrid.cellW
+                        height: 26
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: 2
+                            anchors.rightMargin: 2
+                            radius: 8
+                            color: modelData.fast ? home.fastFill : modelData.selected ? home.ground : Qt.rgba(0.082, 0.086, 0.110, 0.65)
+                            border.width: modelData.selected ? 1 : 0
+                            border.color: home.gold
+                            Label {
+                                anchors.centerIn: parent
+                                text: modelData.day
+                                color: modelData.feast ? home.gold : (modelData.weekday === 1 ? home.ochre : home.parchment)
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                            }
+                            Rectangle {
+                                visible: modelData.settled
+                                width: 3
+                                height: 3
+                                radius: 1.5
+                                color: home.gold
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 2
+                            }
+                        }
+                    }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    z: 2
+                    onClicked: function(mouse) {
+                        const col = Math.floor(mouse.x / monthGrid.cellW)
+                        const row = Math.floor(mouse.y / monthGrid.cellH)
+                        if (col < 0 || col > 6 || row < 0 || row > 5) return
+                        const days = bridge.month || []
+                        const day = days[row * 7 + col]
+                        if (day && day.inMonth && day.date) bridge.selectDate(day.date)
+                    }
+                }
+            }
+        }
+
+    Flickable {
+        id: page
+        objectName: "home-scroll"
+        x: monthPane.width > 0 ? monthPane.width + 12 : 0
+        width: Math.max(0, parent.width - x)
+        height: parent.height
+        contentWidth: width
         contentHeight: content.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -222,7 +441,7 @@ Item {
             width: parent.width
             spacing: 0
 
-            Item { width: 1; height: 50 }
+            Item { width: 1; height: 8 }
             Label {
                 width: parent.width
                 height: 18
@@ -287,8 +506,8 @@ Item {
                             property bool flipped: false
                             width: 132
                             height: 232
-                            radius: 21
-                            color: "#e7decb"
+                            radius: 22
+                            color: "#e8dfcd"
 
                             MouseArea {
                                 anchors.fill: parent
@@ -356,12 +575,19 @@ Item {
                                 }
                             }
                             Label {
-                                x: 14; y: 68
+                                id: titleLabel
+                                objectName: "card-title-" + modelData.id
+                                x: 14
+                                y: 62
                                 width: parent.width - 28
+                                height: card.expanded ? implicitHeight : 56
                                 text: modelData.title
-                                wrapMode: Text.Wrap
-                                maximumLineCount: card.expanded ? 8 : 3
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: card.expanded ? 8 : 4
+                                fontSizeMode: card.expanded ? Text.FixedSize : Text.Fit
+                                minimumPixelSize: 11
                                 elide: Text.ElideRight
+                                verticalAlignment: Text.AlignTop
                                 color: home.ink
                                 font.family: charter.status === FontLoader.Ready ? charter.name : "serif"
                                 font.pixelSize: 18
@@ -455,12 +681,16 @@ Item {
             Rectangle {
                 id: sayingCard
                 width: parent.width
-                height: Math.max(270, sayingQuote.implicitHeight + sayingCredit.implicitHeight + 78)
+                height: 270
                 radius: 20
                 color: "#27252a"
+                clip: true
                 ArtworkImage {
+                    objectName: "saying-art"
                     anchors.fill: parent
                     source: bridge.artworkUrl
+                    drifting: true
+                    progress: home.panProgress
                 }
                 Column {
                     anchors.left: parent.left
@@ -490,6 +720,14 @@ Item {
             }
             Item { width: 1; height: 24 }
         }
+        EdgeFade {
+            y: page.contentY
+            width: page.width
+            height: page.height
+            z: 4
+            ground: home.ground
+        }
+    }
     }
 
     MouseArea {

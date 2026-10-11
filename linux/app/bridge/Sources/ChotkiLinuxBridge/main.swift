@@ -174,15 +174,37 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
             settled: weekPractice.isSettled(on: date)
         )
     }
+    let monthAnchor = CalendarDate(year: calendarView.visible.year, month: calendarView.visible.month, day: 1)
+        ?? selectedDate
+    let gridStart = monthAnchor.adding(days: 1 - monthAnchor.weekday.rawValue)
+    let gridEnd = gridStart.adding(days: 41)
+    let monthOccurrences = try store.occurrences(ruleID: nil, from: gridStart, through: gridEnd)
+    let monthPractice = Practice(rules: rules, activations: activations,
+                                 occurrences: monthOccurrences, settings: settings,
+                                 liturgical: liturgical)
+    let month: [WeekDayPayload] = (0..<42).map { offset in
+        let date = gridStart.adding(days: offset)
+        let day = liturgical.cachedDay(for: date)
+        let feast = settings.observances.feasts.isVisible && day?.isGreatFeast == true
+        let fast = settings.observances.fasting.isVisible && day?.isFast == true
+            && date.weekday != .sunday && !feast
+        return WeekDayPayload(
+            date: date.iso, day: date.day, weekday: date.weekday.rawValue,
+            selected: date == selectedDate, fast: fast, feast: feast,
+            settled: monthPractice.isSettled(on: date),
+            inMonth: date.year == monthAnchor.year && date.month == monthAnchor.month
+        )
+    }
     let saying = PatristicReadings.shared.reading(for: selectedDate)
     let liturgicalDay = liturgical.cachedDay(for: selectedDate)
     let today = CalendarDate(Date(), in: .current)
     let link = TodayLink.needed(selected: selectedDate, today: today,
-                                visibleMonth: selectedDate, monthOpen: false)
+                                visibleMonth: monthAnchor, monthOpen: calendarView.shown)
     return HomeSnapshot(
         selectedDate: selectedDate.iso, displayName: settings.displayName,
         hasCompletedFirstRun: settings.hasCompletedFirstRun,
         psalmOneVerses: Psalter.psalm(1)?.verses.count ?? 0, entries: entries, week: week,
+        month: month, monthTitle: Format.monthAndYear(monthAnchor),
         dayTitle: liturgicalDay?.title ?? "", observedDate: liturgicalDay?.observedDate.iso ?? "",
         showOldStyleDates: settings.showOldStyleDates, sayingText: saying?.text ?? "",
         sayingAuthor: saying?.author ?? "", sayingSource: saying?.source ?? "",
@@ -190,6 +212,41 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
         needsWelcome: try needsWelcome(settings, store: store),
         reducedMotion: readReducedMotion()
     )
+}
+
+struct CalendarViewState {
+    var visible: CalendarDate
+    var shown: Bool
+}
+
+nonisolated(unsafe) var calendarView = CalendarViewState(
+    visible: CalendarDate(year: 2026, month: 1, day: 1)!, shown: false)
+nonisolated(unsafe) var panSession: [String: Date] = [:]
+
+private func panFile() -> URL? {
+    recordDirectory?.appendingPathComponent("saying-pan")
+}
+
+/// The day's pan starts once. A later visit, in this process or the next,
+/// continues from that instant. Review does not write the file.
+private func panStart(identity: String, persist: Bool) -> Date {
+    if let existing = panSession[identity] { return existing }
+    if persist, let url = panFile(),
+       let text = try? String(contentsOf: url, encoding: .utf8) {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        if lines.count >= 2, lines[0] == identity, let seconds = Double(lines[1]) {
+            let started = Date(timeIntervalSince1970: seconds)
+            panSession[identity] = started
+            return started
+        }
+    }
+    let now = Date()
+    panSession[identity] = now
+    if persist, let url = panFile() {
+        try? (identity + "\n" + String(now.timeIntervalSince1970))
+            .write(to: url, atomically: true, encoding: .utf8)
+    }
+    return now
 }
 
 private func dayPractice(_ store: SQLiteStore, on date: CalendarDate) throws -> Practice {
@@ -252,6 +309,9 @@ do {
 
     var selectedDate = CalendarDate(Date(), in: .current)
     var weekCenter = selectedDate
+    calendarView.visible = selectedDate
+    calendarView.shown = false
+    panSession.removeAll()
     // The rope count lives for this process, as it does on the Mac. Leaving the
     // page and coming back reads it again. A new process starts at the beginning.
     var prayers = PrayerSession()
@@ -281,6 +341,7 @@ do {
                 }
                 selectedDate = date
                 weekCenter = date
+                calendarView.visible = date
                 reading.applyFocus()
                 psalter.clear()
                 try reply(id: id, snapshot: homeSnapshot(store: store, on: selectedDate,
@@ -293,6 +354,37 @@ do {
                 weekCenter = weekCenter.adding(days: direction * 7)
                 try reply(id: id, snapshot: homeSnapshot(store: store, on: selectedDate,
                                                          weekCenter: weekCenter))
+
+            case "shiftMonth":
+                guard let direction = request.direction, direction == -1 || direction == 1 else {
+                    throw BridgeError.invalidRequest
+                }
+                let first = CalendarDate(year: calendarView.visible.year,
+                                         month: calendarView.visible.month, day: 1) ?? selectedDate
+                let stepped = direction < 0
+                    ? first.adding(days: -1)
+                    : first.adding(days: first.lastDayOfMonth)
+                calendarView.visible = CalendarDate(year: stepped.year, month: stepped.month, day: 1) ?? stepped
+                try reply(id: id, snapshot: homeSnapshot(store: store, on: selectedDate,
+                                                         weekCenter: weekCenter))
+
+            case "setMonthShown":
+                calendarView.shown = request.shown == true
+                try reply(id: id, snapshot: homeSnapshot(store: store, on: selectedDate,
+                                                         weekCenter: weekCenter))
+
+            case "noteSayingPan":
+                guard let name = request.name, !name.isEmpty, name.count < 240,
+                      !name.contains("\n"), !name.contains("/") || name.hasPrefix("sayings/") else {
+                    throw BridgeError.invalidRequest
+                }
+                let today = CalendarDate(Date(), in: .current)
+                let identity = "pan3-\(selectedDate.iso)-\(name)"
+                let started = panStart(identity: identity, persist: !mode.isReview && selectedDate == today)
+                var noted = try homeSnapshot(store: store, on: selectedDate, weekCenter: weekCenter)
+                    .success(id: id, today: today.iso)
+                noted.sayingPanStart = started.timeIntervalSince1970
+                respond(noted)
 
             case "toggleKept", "markKeptLate", "standDownDay":
                 guard let raw = request.ruleID, let ruleID = UUID(uuidString: raw) else {

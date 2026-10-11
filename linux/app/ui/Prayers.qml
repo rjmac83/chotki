@@ -303,6 +303,12 @@ Item {
                     }
                 }
             }
+            EdgeFade {
+                y: prayerScroll.contentY
+                width: prayerScroll.width
+                height: prayerScroll.height
+                z: 8
+            }
         }
 
         Rectangle {

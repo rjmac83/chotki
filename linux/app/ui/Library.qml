@@ -18,6 +18,7 @@ Item {
     Component.onCompleted: bridge.showLibrary("")
 
     Flickable {
+        id: libraryScroll
         objectName: "library-scroll"
         anchors.fill: parent
         visible: bridge.editorPage.open !== true && !(bridge.editorPage.caution === true && !library.cautionClosed)
@@ -262,6 +263,12 @@ Item {
                     }
                 }
             }
+        }
+        EdgeFade {
+            y: libraryScroll.contentY
+            width: libraryScroll.width
+            height: libraryScroll.height
+            z: 8
         }
     }
 

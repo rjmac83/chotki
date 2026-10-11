@@ -24,8 +24,12 @@ class Bridge final : public QObject {
     Q_PROPERTY(QString sayingAuthor READ sayingAuthor NOTIFY changed)
     Q_PROPERTY(QString sayingSource READ sayingSource NOTIFY changed)
     Q_PROPERTY(QString artworkUrl READ artworkUrl NOTIFY changed)
+    Q_PROPERTY(QString artworkName READ artworkName NOTIFY changed)
+    Q_PROPERTY(double sayingPanStart READ sayingPanStart NOTIFY changed)
     Q_PROPERTY(QVariantList entries READ entries NOTIFY changed)
     Q_PROPERTY(QVariantList week READ week NOTIFY changed)
+    Q_PROPERTY(QVariantList month READ month NOTIFY changed)
+    Q_PROPERTY(QString monthTitle READ monthTitle NOTIFY changed)
     Q_PROPERTY(int psalmOneVerses READ psalmOneVerses NOTIFY changed)
     Q_PROPERTY(QString prayerSelection READ prayerSelection NOTIFY changed)
     Q_PROPERTY(bool prayerRopeAlone READ prayerRopeAlone NOTIFY changed)
@@ -123,8 +127,12 @@ public:
     QString sayingAuthor() const { return m_sayingAuthor; }
     QString sayingSource() const { return m_sayingSource; }
     QString artworkUrl() const { return m_artworkUrl; }
+    QString artworkName() const { return m_artworkName; }
+    double sayingPanStart() const { return m_sayingPanStart; }
     QVariantList entries() const { return m_entries; }
     QVariantList week() const { return m_week; }
+    QVariantList month() const { return m_month; }
+    QString monthTitle() const { return m_monthTitle; }
     int psalmOneVerses() const { return m_psalmOneVerses; }
     QString prayerSelection() const { return m_prayerSelection; }
     bool prayerRopeAlone() const { return m_prayerRopeAlone; }
@@ -214,6 +222,9 @@ public:
     Q_INVOKABLE void markKeptLate(const QString &ruleID);
     Q_INVOKABLE void standDownDay(const QString &ruleID);
     Q_INVOKABLE void shiftWeek(int direction);
+    Q_INVOKABLE void shiftMonth(int direction);
+    Q_INVOKABLE void setMonthShown(bool shown);
+    Q_INVOKABLE void noteSayingPan(const QString &name);
     Q_INVOKABLE void refreshPrayer();
     Q_INVOKABLE void choosePrayer(const QString &selection);
     Q_INVOKABLE void advancePrayer();
@@ -304,9 +315,13 @@ private:
     QString m_sayingSource;
     QString m_artworkRoot;
     QString m_artworkUrl;
+    QString m_artworkName;
+    double m_sayingPanStart = -1;
     QStringList m_artworkOrder;
     QVariantList m_entries;
     QVariantList m_week;
+    QVariantList m_month;
+    QString m_monthTitle;
     int m_psalmOneVerses = 0;
     QString m_prayerSelection = "jesus-prayer";
     bool m_prayerRopeAlone = false;

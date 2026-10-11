@@ -6,7 +6,7 @@ Item {
     id: reading
     objectName: "reading"
     readonly property color parchment: "#e8dfcd"
-    readonly property color parchmentDim: "#d9d0bd"
+    readonly property color parchmentDim: "#d8cfbd"
     readonly property color muted: "#a39e8f"
     readonly property color faint: "#827d70"
     readonly property color gold: "#c9a227"
@@ -463,6 +463,12 @@ Item {
                     topPadding: 8
                 }
             }
+        }
+        EdgeFade {
+            y: reader.contentY
+            width: reader.width
+            height: reader.height
+            z: 8
         }
     }
 }

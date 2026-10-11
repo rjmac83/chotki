@@ -303,6 +303,73 @@ private slots:
         QVERIFY(lateOnFast && !lateOnFast->isVisible());
         QCOMPARE(window->property("section").toString(), QString("Home"));
     }
+
+    void monthBesideTheDayAndTheSayingRests() {
+        const QString program = qEnvironmentVariable("CHOTKI_LINUX_BRIDGE");
+        if (program.isEmpty()) QSKIP("CHOTKI_LINUX_BRIDGE is not set");
+        const auto session = openSession(program);
+        QVERIFY(session && session->window);
+        auto *bridge = session->bridge.get();
+        auto *window = session->window;
+        QTRY_VERIFY_WITH_TIMEOUT(bridge->snapshotReady() && bridge->month().size() == 42, 8000);
+
+        int inside = 0;
+        QString prefix;
+        for (const QVariant &cell : bridge->month()) {
+            const QVariantMap day = cell.toMap();
+            if (day.value(QStringLiteral("weekday")).toInt() == 1)
+                QVERIFY(!day.value(QStringLiteral("fast")).toBool());
+            if (!day.value(QStringLiteral("inMonth")).toBool()) continue;
+            ++inside;
+            const QString date = day.value(QStringLiteral("date")).toString();
+            if (prefix.isEmpty()) prefix = date.left(7);
+            QCOMPARE(date.left(7), prefix);
+        }
+        QVERIFY(inside >= 28 && inside <= 31);
+        const QString title = bridge->monthTitle();
+        QVERIFY(title.endsWith(prefix.left(4)));
+
+        QQuickItem *grid = nullptr;
+        QQuickItem *week = nullptr;
+        QQuickItem *art = nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT((grid = findItem(window->contentItem(), "month-grid"))
+                                 && grid->isVisible() && grid->height() > 100
+                                 && (week = findItem(window->contentItem(), "week-scroll"))
+                                 && week->isVisible()
+                                 && (art = findItem(window->contentItem(), "saying-art"))
+                                 && art->property("progress").toDouble() == 1.0, 3000);
+        QVERIFY(findItem(window->contentItem(), "edge-fade"));
+
+        QString titled;
+        for (const QVariant &item : bridge->entries()) {
+            const QString id = item.toMap().value(QStringLiteral("id")).toString();
+            QQuickItem *label = findItem(window->contentItem(), "card-title-" + id);
+            if (!label) continue;
+            titled = id;
+            QCOMPARE(label->property("fontSizeMode").toInt(), 3);
+            QCOMPARE(label->property("minimumPixelSize").toInt(), 11);
+            QCOMPARE(label->property("height").toDouble(), 56.0);
+            break;
+        }
+        QVERIFY(!titled.isEmpty());
+
+        const QString selected = bridge->selectedDate();
+        QQuickItem *next = findItem(window->contentItem(), "month-next");
+        QVERIFY(next && next->isVisible());
+        click(window, next);
+        QTRY_VERIFY_WITH_TIMEOUT(bridge->monthTitle() != title && bridge->month().size() == 42, 8000);
+        QCOMPARE(bridge->selectedDate(), selected);
+        int after = 0;
+        QString moved;
+        for (const QVariant &cell : bridge->month()) {
+            const QVariantMap day = cell.toMap();
+            if (!day.value(QStringLiteral("inMonth")).toBool()) continue;
+            ++after;
+            if (moved.isEmpty()) moved = day.value(QStringLiteral("date")).toString().left(7);
+        }
+        QVERIFY(after >= 28 && after <= 31);
+        QVERIFY(moved != prefix);
+    }
 };
 
 QTEST_MAIN(HomeActionsTest)

@@ -6,8 +6,8 @@ ApplicationWindow {
     id: window
     width: 1100
     height: 860
-    minimumWidth: 900
-    minimumHeight: 620
+    minimumWidth: 620
+    minimumHeight: 540
     visible: true
     title: "Chotki"
     color: "#15161c"
@@ -15,9 +15,16 @@ ApplicationWindow {
     readonly property color ground: "#15161c"
     readonly property color panel: "#1c1e26"
     readonly property color parchment: "#e8dfcd"
+    readonly property color parchmentDim: "#d8cfbd"
     readonly property color muted: "#a39e8f"
+    readonly property color faint: "#827d70"
     readonly property color gold: "#c9a227"
+    readonly property color goldDim: "#a88a33"
+    readonly property color line: "#2e2a20"
     readonly property color lineSoft: "#23252c"
+    readonly property color violet: "#9a8fc4"
+    readonly property color ochre: "#a63a38"
+    property bool sidebarCollapsed: false
     property string section: "Home"
     property bool welcomeAsked: false
     property string glossaryReturn: "Home"
@@ -147,6 +154,10 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+5"; onActivated: if (!window.welcoming()) window.section = "Library" }
     Shortcut { sequence: "Ctrl+6"; onActivated: window.showSection("Glossary") }
     Shortcut { sequence: "Ctrl+7"; onActivated: window.showSection("Settings") }
+    Shortcut {
+        sequence: "Ctrl+Shift+S"
+        onActivated: window.sidebarCollapsed = !window.sidebarCollapsed
+    }
 
     FontLoader { id: charter; source: "fonts/XCharter-Roman.otf" }
     FontLoader { id: charterBold; source: "fonts/XCharter-Bold.otf" }
@@ -163,39 +174,74 @@ ApplicationWindow {
         return Qt.formatDate(date, "dddd d MMMM")
     }
 
+    Canvas {
+        id: backdrop
+        anchors.fill: parent
+        readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+        canvasSize: Qt.size(width * dpr, height * dpr)
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onDprChanged: requestPaint()
+        onPaint: {
+            const context = getContext("2d")
+            if (context.reset) context.reset()
+            context.setTransform(dpr, 0, 0, dpr, 0, 0)
+            context.fillStyle = window.ground
+            context.fillRect(0, 0, width, height)
+            const parchment = context.createRadialGradient(0, 0, 0, 0, 0, width * 0.7)
+            parchment.addColorStop(0, "rgba(232, 223, 205, 0.14)")
+            parchment.addColorStop(1, "rgba(232, 223, 205, 0)")
+            context.fillStyle = parchment
+            context.fillRect(0, 0, width, height)
+            const gold = context.createRadialGradient(width, height, 0, width, height, width * 0.6)
+            gold.addColorStop(0, "rgba(201, 162, 39, 0.10)")
+            gold.addColorStop(1, "rgba(201, 162, 39, 0)")
+            context.fillStyle = gold
+            context.fillRect(0, 0, width, height)
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
         Rectangle {
             Layout.fillHeight: true
-            Layout.preferredWidth: 188
-            color: "#1d1e23"
+            Layout.preferredWidth: window.sidebarCollapsed ? 58 : 188
+            color: Qt.rgba(0.082, 0.086, 0.110, 0.24)
 
             Column {
                 anchors.fill: parent
                 anchors.margins: 10
                 spacing: 3
 
-                Label {
-                    text: "▣"
+                Item {
+                    objectName: "sidebar-collapse"
                     width: parent.width
-                    height: 60
-                    leftPadding: 9
-                    topPadding: 13
-                    color: window.muted
-                    font.pixelSize: 17
-                    Accessible.name: "Sidebar"
+                    height: 32
+                    Accessible.name: window.sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"
+                    Label {
+                        x: 9
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "▣"
+                        color: window.muted
+                        font.pixelSize: 16
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: window.sidebarCollapsed = !window.sidebarCollapsed
+                    }
                 }
 
                 Repeater {
                     model: window.groups
                     delegate: Column {
                         required property var modelData
-                        width: 168
+                        width: window.sidebarCollapsed ? 38 : 168
                         spacing: 3
 
                         Label {
+                            visible: !window.sidebarCollapsed
                             text: modelData.heading
                             color: window.muted
                             opacity: 0.92
@@ -205,15 +251,20 @@ ApplicationWindow {
                             topPadding: 12
                             bottomPadding: 4
                         }
+                        Item {
+                            visible: window.sidebarCollapsed
+                            width: 1
+                            height: 12
+                        }
 
                         Repeater {
                             model: modelData.items
                             delegate: Rectangle {
                                 required property string modelData
                                 objectName: "nav-" + modelData
-                                width: 168
+                                width: window.sidebarCollapsed ? 38 : 168
                                 height: 36
-                                color: window.section === modelData ? "#171920" : "transparent"
+                                color: window.section === modelData ? window.panel : "transparent"
                                 radius: 8
                                 Accessible.name: modelData
                                 Row {
@@ -228,6 +279,7 @@ ApplicationWindow {
                                         tint: window.section === modelData ? window.parchment : window.muted
                                     }
                                     Label {
+                                        visible: !window.sidebarCollapsed
                                         text: modelData
                                         color: window.section === modelData ? window.parchment : window.muted
                                         font.pixelSize: 13
@@ -245,33 +297,21 @@ ApplicationWindow {
             }
         }
 
+        Rectangle {
+            Layout.fillHeight: true
+            Layout.preferredWidth: 1
+            color: window.lineSoft
+        }
+
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-
-            Canvas {
-                anchors.fill: parent
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                onPaint: {
-                    const context = getContext("2d")
-                    context.reset()
-                    context.fillStyle = window.ground
-                    context.fillRect(0, 0, width, height)
-                    const glow = context.createRadialGradient(width * 0.1, height * 0.15, 0,
-                                                               width * 0.1, height * 0.15, width * 0.85)
-                    glow.addColorStop(0, "#383538")
-                    glow.addColorStop(1, "#15161c")
-                    context.fillStyle = glow
-                    context.fillRect(0, 0, width, height)
-                }
-            }
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 24
                 anchors.rightMargin: 24
-                anchors.topMargin: 58
+                anchors.topMargin: 24
                 anchors.bottomMargin: 18
                 spacing: 0
 
@@ -287,6 +327,7 @@ ApplicationWindow {
                         font.pixelSize: 28
                         font.weight: Font.DemiBold
                         Layout.fillWidth: true
+                        Layout.bottomMargin: 18
                     }
                     Label {
                         visible: bridge.review

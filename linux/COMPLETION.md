@@ -158,6 +158,10 @@ Do this after the screens exist, so the pass covers the real window.
 
 **Gate.** Side-by-side review of Home, Prayers, Reading, Library, Progress, Glossary, and Settings at both scales, with notes of what was accepted as different.
 
+**Checked on the ARM64 guest (2026-10-11):** Home, Prayers, Reading, Library, Progress, Glossary, and Settings were compared at 1100×860 and at 2200×1720. The ground, panel, parchment, gold, muted, faint, line, and the Sunday ochre match the Mac window, and reading text is XCharter. The sidebar is 188 points wide and folds to 58 from the mark, or with Ctrl+Shift+S. At this width the week stays above the day and one month of the selected date sits beside it. Days outside that month are blank. No Sunday in the month is a fast. A review grab holds the saying on its resting crop; the progress picture stays still. Compact card titles fit the width, and the vertical pages dissolve into the ground at the top and bottom. The icons stayed sharp at 2×. The bridge check, the nine window tests, an offscreen window, and a 1100×860 review screenshot of 406850 bytes passed. The Ubuntu 24.04 `amd64` half of this gate is the GitHub workflow.
+
+The Mac window folds the week into that month with a chevron. Linux keeps the week, which the day controls already use, and adds the month beside the day once the day column is at least 660 points wide. There is no chevron, and the Today link stays on the week. The Mac collapses the sidebar with the sidebar symbol and Command-Control-S. A card still opens with the Expand label rather than an expand icon. Backup export and restore stay a path; the file dialogs are Phase 3. There is no Dock switch and no login item.
+
 ## Phase 3 — Session services
 
 The window already has to be complete. This phase connects it to the session.
@@ -211,4 +215,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-Slice 2.9, when that work is asked for. Slices 2.1 through 2.8 are recorded above.
+Phase 3, when that work is asked for. Slices 2.1 through 2.9 are recorded above.

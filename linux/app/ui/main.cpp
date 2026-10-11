@@ -15,6 +15,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 
+#include <functional>
 #include <memory>
 
 #include <unistd.h>
@@ -100,8 +101,44 @@ int main(int argc, char *argv[]) {
             }
             timer->stop();
             const bool saved = window->grabWindow().save(path);
-            if (!saved) qCritical("Could not save the review screenshot");
-            application.exit(saved ? 0 : 6);
+            if (!saved) {
+                qCritical("Could not save the review screenshot");
+                application.exit(6);
+                return;
+            }
+            const QString pages = qEnvironmentVariable("CHOTKI_REVIEW_PAGES");
+            if (pages.isEmpty()) {
+                application.exit(0);
+                return;
+            }
+            QDir().mkpath(pages);
+            const QStringList sections = {
+                QStringLiteral("Prayers"), QStringLiteral("Reading"), QStringLiteral("Library"),
+                QStringLiteral("Progress"), QStringLiteral("Glossary"), QStringLiteral("Settings")
+            };
+            auto index = std::make_shared<int>(0);
+            auto step = std::make_shared<std::function<void()>>();
+            *step = [window, pages, sections, index, step, &application, &bridge] {
+                if (*index >= sections.size()) {
+                    application.exit(0);
+                    return;
+                }
+                const QString section = sections.at(*index);
+                if (section == QLatin1String("Reading")) bridge.showReading();
+                if (section == QLatin1String("Glossary")) bridge.showGlossary(QString(), QString());
+                window->setProperty("section", section);
+                const QString file = pages + QLatin1Char('/') + section.toLower() + QStringLiteral(".png");
+                QTimer::singleShot(700, window, [window, file, index, step, &application] {
+                    if (!window->grabWindow().save(file)) {
+                        qCritical("Could not save a review page");
+                        application.exit(6);
+                        return;
+                    }
+                    ++(*index);
+                    (*step)();
+                });
+            };
+            (*step)();
         });
         timer->start();
     }

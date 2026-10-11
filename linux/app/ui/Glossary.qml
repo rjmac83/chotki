@@ -277,6 +277,12 @@ Item {
                     }
                 }
             }
+            EdgeFade {
+                y: scroller.contentY
+                width: scroller.width
+                height: scroller.height
+                z: 8
+            }
         }
     }
 }

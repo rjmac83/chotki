@@ -327,6 +327,9 @@ struct WeekDayPayload: Encodable {
     var fast: Bool
     var feast: Bool
     var settled: Bool
+    /// Set on a month cell. Omitted on the week strip. False is a leading or
+    /// trailing blank, not a day of the month on show.
+    var inMonth: Bool? = nil
 }
 
 /// One successful reply. Nil fields are left out of the JSON.
@@ -342,6 +345,10 @@ struct BridgeSuccess: Encodable {
     var psalmOneVerses: Int?
     var entries: [EntryPayload]?
     var week: [WeekDayPayload]?
+    /// Forty-two cells for the month on show. Present only on a home snapshot.
+    var month: [WeekDayPayload]?
+    /// "October 2026", from core. Present only on a home snapshot.
+    var monthTitle: String?
     var dayTitle: String?
     var observedDate: String?
     var showOldStyleDates: Bool?
@@ -369,6 +376,9 @@ struct BridgeSuccess: Encodable {
     var needsWelcome: Bool? = nil
     /// Stored beside the record, so a helper restart still knows.
     var reducedMotion: Bool? = nil
+    /// Unix seconds when today's saying began its pan. Only `noteSayingPan`
+    /// sets it. A review record does not keep the file.
+    var sayingPanStart: Double? = nil
 }
 
 struct ProgressRulePayload: Encodable {
@@ -402,6 +412,8 @@ struct HomeSnapshot {
     var psalmOneVerses: Int
     var entries: [EntryPayload]
     var week: [WeekDayPayload]
+    var month: [WeekDayPayload]
+    var monthTitle: String
     var dayTitle: String
     var observedDate: String
     var showOldStyleDates: Bool
@@ -417,6 +429,7 @@ struct HomeSnapshot {
             v: bridgeProtocolVersion, id: id, displayName: displayName, today: today,
             selectedDate: selectedDate, hasCompletedFirstRun: hasCompletedFirstRun,
             psalmOneVerses: psalmOneVerses, entries: entries, week: week,
+            month: month, monthTitle: monthTitle,
             dayTitle: dayTitle, observedDate: observedDate,
             showOldStyleDates: showOldStyleDates, sayingText: sayingText,
             sayingAuthor: sayingAuthor, sayingSource: sayingSource,

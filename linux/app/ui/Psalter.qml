@@ -306,6 +306,12 @@ Item {
                     topPadding: 8
                 }
             }
+            EdgeFade {
+                y: reader.contentY
+                width: reader.width
+                height: reader.height
+                z: 8
+            }
         }
     }
 }

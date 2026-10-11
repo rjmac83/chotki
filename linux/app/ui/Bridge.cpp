@@ -108,6 +108,12 @@ struct BridgeResponse {
     QVariantList entries;
     bool hasWeek = false;
     QVariantList week;
+    bool hasMonth = false;
+    QVariantList month;
+    bool hasMonthTitle = false;
+    QString monthTitle;
+    bool hasSayingPanStart = false;
+    double sayingPanStart = -1;
     bool hasPsalmOneVerses = false;
     int psalmOneVerses = 0;
     bool hasPrayer = false;
@@ -170,6 +176,12 @@ BridgeResponse decodeResponse(const QJsonObject &object) {
     response.entries = object.value("entries").toArray().toVariantList();
     response.hasWeek = object.contains("week");
     response.week = object.value("week").toArray().toVariantList();
+    response.hasMonth = object.contains("month");
+    response.month = object.value("month").toArray().toVariantList();
+    response.hasMonthTitle = object.contains("monthTitle");
+    response.monthTitle = object.value("monthTitle").toString();
+    response.hasSayingPanStart = object.contains("sayingPanStart");
+    response.sayingPanStart = object.value("sayingPanStart").toDouble(-1);
     response.hasPsalmOneVerses = object.contains("psalmOneVerses");
     response.psalmOneVerses = object.value("psalmOneVerses").toInt();
     response.hasPrayer = object.contains("prayer");
@@ -233,6 +245,18 @@ void Bridge::standDownDay(const QString &ruleID) {
 }
 void Bridge::shiftWeek(int direction) {
     if (direction == -1 || direction == 1) send("shiftWeek", QJsonObject{{"direction", direction}});
+}
+
+void Bridge::shiftMonth(int direction) {
+    if (direction == -1 || direction == 1) send("shiftMonth", QJsonObject{{"direction", direction}});
+}
+
+void Bridge::setMonthShown(bool shown) {
+    send("setMonthShown", QJsonObject{{"shown", shown}});
+}
+
+void Bridge::noteSayingPan(const QString &name) {
+    if (!name.isEmpty()) send("noteSayingPan", QJsonObject{{"name", name}});
 }
 
 void Bridge::refreshPrayer() { send("prayer", QJsonObject{{"diameter", m_ropeDiameter}}); }
@@ -587,8 +611,10 @@ void Bridge::readResponses() {
             m_selectedDate = response.selectedDate;
             const QDate date = QDate::fromString(m_selectedDate, Qt::ISODate);
             m_artworkUrl.clear();
+            m_artworkName.clear();
             if (date.isValid() && !m_artworkOrder.isEmpty()) {
                 const QString name = m_artworkOrder.at(date.dayOfYear() % m_artworkOrder.size());
+                m_artworkName = name;
                 const QString path = QDir(m_artworkRoot).filePath(name);
                 if (QFileInfo::exists(path)) m_artworkUrl = QUrl::fromLocalFile(path).toString();
             }
@@ -601,6 +627,12 @@ void Bridge::readResponses() {
         if (response.hasSayingSource) m_sayingSource = response.sayingSource;
         if (response.hasEntries) m_entries = response.entries;
         if (response.hasWeek) m_week = response.week;
+        if (response.hasMonth) m_month = response.month;
+        if (response.hasMonthTitle) m_monthTitle = response.monthTitle;
+        // noteSayingPan is the only reply that carries the start. A day
+        // snapshot leaves it out, so the stored instant is cleared. The
+        // window does not restart a pan that is already on its way.
+        m_sayingPanStart = response.hasSayingPanStart ? response.sayingPanStart : -1;
         if (response.hasPsalmOneVerses) m_psalmOneVerses = response.psalmOneVerses;
         if (response.hasNeedsWelcome) m_needsWelcome = response.needsWelcome;
         // A day snapshot omits todayLink when the selected day is today.

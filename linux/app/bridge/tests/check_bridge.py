@@ -100,6 +100,31 @@ def main():
         assert first["entries"] and len(first["week"]) == 7
         assert first["selectedDate"] == first["today"]
         assert "todayLink" not in first
+        assert len(first["month"]) == 42
+        inside = [day for day in first["month"] if day["inMonth"]]
+        assert 28 <= len(inside) <= 31
+        prefix = inside[0]["date"][:7]
+        assert all(day["date"].startswith(prefix) for day in inside)
+        assert all(not day["fast"] for day in first["month"] if day["weekday"] == 1)
+        assert first["monthTitle"].endswith(prefix[:4])
+        shown = ask("setMonthShown", shown=True)
+        assert shown["ok"] and shown["monthTitle"] == first["monthTitle"]
+        assert shown["selectedDate"] == first["selectedDate"]
+        assert "todayLink" not in shown
+        shifted = ask("shiftMonth", direction=1)
+        assert shifted["ok"] and shifted["monthTitle"] != first["monthTitle"]
+        assert shifted["selectedDate"] == first["selectedDate"]
+        assert 28 <= len([day for day in shifted["month"] if day["inMonth"]]) <= 31
+        assert "todayLink" in shifted
+        restored = ask("shiftMonth", direction=-1)
+        assert restored["monthTitle"] == first["monthTitle"]
+        assert restored["selectedDate"] == first["selectedDate"]
+        assert "todayLink" not in restored
+        pan = ask("noteSayingPan", name="sayings/01.jpg")
+        assert isinstance(pan["sayingPanStart"], float)
+        assert not (Path(review_dir) / "saying-pan").exists()
+        again = ask("noteSayingPan", name="sayings/01.jpg")
+        assert again["sayingPanStart"] == pan["sayingPanStart"]
         by_title = {item["title"]: item for item in first["entries"]}
         assert by_title["Morning prayers"]["destination"] == "prayers"
         assert by_title["Morning prayers"]["selection"] == "morning"
@@ -441,6 +466,13 @@ def main():
         assert ask("hello")["mode"] == "normal"
         snapshot = ask("snapshot")
         assert snapshot["entries"] == []
+        noted = ask("noteSayingPan", name="sayings/03.jpg")
+        assert isinstance(noted["sayingPanStart"], float)
+        repeated = ask("noteSayingPan", name="sayings/03.jpg")
+        assert repeated["sayingPanStart"] == noted["sayingPanStart"]
+        stored = Path(directory) / "Chotki" / "saying-pan"
+        assert stored.is_file()
+        assert stored.read_text().splitlines()[0].endswith("sayings/03.jpg")
         assert not ask("setReviewName", name="Must fail")["ok"]
 
         catalog = ask("library", query="")["library"]

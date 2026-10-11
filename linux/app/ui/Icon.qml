@@ -6,12 +6,20 @@ Canvas {
     height: 18
     property string kind: ""
     property color tint: "#a39e8f"
+    // Logical coordinates stay the same. The bitmap follows the screen so a
+    // 2× display does not scale a 1× drawing.
+    readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+    canvasSize: Qt.size(width * dpr, height * dpr)
     onKindChanged: requestPaint()
     onTintChanged: requestPaint()
+    onDprChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
 
     onPaint: {
         const p = getContext("2d")
-        p.reset()
+        if (p.reset) p.reset()
+        p.setTransform(dpr, 0, 0, dpr, 0, 0)
         p.strokeStyle = tint
         p.fillStyle = tint
         p.lineWidth = 1.15
