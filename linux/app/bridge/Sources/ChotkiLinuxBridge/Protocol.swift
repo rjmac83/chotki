@@ -69,7 +69,7 @@ struct BridgeRequest: Decodable {
     var feasts: String?
     /// A `ClockStyle` raw value.
     var clock: String?
-    /// The reminder master switch. Delivery is a later slice.
+    /// The reminder master switch. The helper plans; the window delivers.
     var notifications: Bool?
     /// A `ReminderLead` raw value.
     var lead: Int?
@@ -87,6 +87,10 @@ struct BridgeRequest: Decodable {
     var father: String?
     /// Show the Julian date beside the civil one.
     var showOldStyleDates: Bool?
+    /// The desktop autostart switch. Omitted, the stored value stays.
+    var launchAtLogin: Bool?
+    /// Absolute path of the window, sent when the autostart entry is written.
+    var executable: String?
 }
 
 struct PrayerKnotPayload: Encodable {
@@ -379,6 +383,25 @@ struct BridgeSuccess: Encodable {
     /// Unix seconds when today's saying began its pan. Only `noteSayingPan`
     /// sets it. A review record does not keep the file.
     var sayingPanStart: Double? = nil
+    /// What the ticker wants shown or taken back. Not a home snapshot.
+    var reminders: RemindersPayload? = nil
+}
+
+struct ReminderActionPayload: Encodable {
+    var id: String
+    var title: String
+}
+
+struct ReminderNotice: Encodable {
+    var id: String
+    var title: String
+    var body: String
+    var actions: [ReminderActionPayload]
+}
+
+struct RemindersPayload: Encodable {
+    var show: [ReminderNotice]
+    var withdraw: [String]
 }
 
 struct ProgressRulePayload: Encodable {

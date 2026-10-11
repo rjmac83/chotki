@@ -62,6 +62,7 @@ struct SettingsPayload: Encodable {
     var showFigure: Bool
     var figureHelp: String
     var reducedMotion: Bool
+    var launchAtLogin: Bool
     var backupDirectory: String
     var backupHelp: String
     var version: String
@@ -168,6 +169,7 @@ func settingsPayload(_ settings: AppSettings, store: SQLiteStore, notice: String
         showFigure: settings.showConsistencyNumber,
         figureHelp: "With this off, progress is reported in words only.",
         reducedMotion: readReducedMotion(),
+        launchAtLogin: settings.launchAtLogin,
         backupDirectory: backupDirectoryURL()?.path ?? "",
         backupHelp: "A copy is also written automatically each day, in the backups folder beside your record. Restoring merges into what is already here; nothing is removed.",
         version: linuxAlphaVersion,
@@ -182,9 +184,69 @@ private func absoluteBackupPath(_ raw: String?) throws -> URL {
     return URL(fileURLWithPath: raw)
 }
 
+/// `$XDG_CONFIG_HOME/autostart` when that variable is absolute. A relative
+/// value is refused, the same way a relative review directory is. Otherwise
+/// the file is `~/.config/autostart/org.chotki.Chotki.desktop`.
+func autostartFileURL() -> URL? {
+    let proposed = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? ""
+    if !proposed.isEmpty && !proposed.hasPrefix("/") { return nil }
+    let base = proposed.hasPrefix("/")
+        ? URL(fileURLWithPath: proposed, isDirectory: true)
+        : FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config", isDirectory: true)
+    return base.appendingPathComponent("autostart/org.chotki.Chotki.desktop")
+}
+
+func desktopExecLine(_ executable: String) -> String? {
+    guard executable.hasPrefix("/"), executable.count < 4000,
+          !executable.contains("\n"), !executable.contains("\r"),
+          !executable.contains("\"") else { return nil }
+    if executable.contains(" ") || executable.contains("\t") {
+        return "\"\(executable)\""
+    }
+    return executable
+}
+
+/// Review mode does not touch the person's autostart directory. Turning the
+/// switch off removes the file. Turning it on writes it only when the window
+/// has sent an absolute path.
+func syncLaunchAtLogin(enabled: Bool, executable: String?, review: Bool) throws {
+    if review { return }
+    guard let url = autostartFileURL() else { return }
+    if !enabled {
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        return
+    }
+    guard let executable, let exec = desktopExecLine(executable) else { return }
+    try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+    )
+    let text = [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Chotki",
+        "Exec=\(exec)",
+        "Icon=org.chotki.Chotki",
+        "X-GNOME-Autostart-enabled=true",
+        "",
+    ].joined(separator: "\n")
+    try text.write(to: url, atomically: true, encoding: .utf8)
+}
+
 func performSettings(_ request: BridgeRequest, store: SQLiteStore,
-                     on date: CalendarDate, weekCenter: CalendarDate) throws {
+                     on date: CalendarDate, weekCenter: CalendarDate, review: Bool) throws {
     switch request.op {
+    case "syncAutostart":
+        if !review {
+            let settings = try store.loadSettings() ?? .default
+            try syncLaunchAtLogin(
+                enabled: settings.launchAtLogin, executable: request.executable, review: false
+            )
+        }
+        respond(BridgeSuccess(v: bridgeProtocolVersion, id: request.id))
+
     case "settings":
         let settings = try store.loadSettings() ?? .default
         respond(BridgeSuccess(
@@ -272,6 +334,7 @@ func performSettings(_ request: BridgeRequest, store: SQLiteStore,
         if let tick = request.tick { updated.tickEachKnot = tick }
         if let figure = request.showFigure { updated.showConsistencyNumber = figure }
         if let motion = request.motion { try writeReducedMotion(motion) }
+        if let enabled = request.launchAtLogin { updated.launchAtLogin = enabled }
         if request.welcome == true { updated.hasCompletedFirstRun = true }
         let today = CalendarDate(Date(), in: .current)
         if updated.hasCompletedFirstRun && updated.firstRunOn == nil { updated.firstRunOn = today }
@@ -280,6 +343,11 @@ func performSettings(_ request: BridgeRequest, store: SQLiteStore,
         let jurisdictionChanged = updated.jurisdiction != stored.jurisdiction
         if reckoningChanged { updated.reckoningChangedOn = today }
         try store.saveSettings(updated)
+        if request.launchAtLogin != nil {
+            try syncLaunchAtLogin(
+                enabled: updated.launchAtLogin, executable: request.executable, review: review
+            )
+        }
         if jurisdictionChanged {
             let liturgical = LiturgicalService(
                 store: store, jurisdiction: updated.jurisdiction, networkPolicy: .never

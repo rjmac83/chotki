@@ -52,6 +52,8 @@ class SampleBridge final : public QObject {
     Q_PROPERTY(QVariantList prayerWords MEMBER prayerWords CONSTANT)
     Q_PROPERTY(bool openingReady MEMBER openingReady CONSTANT)
     Q_PROPERTY(bool needsWelcome MEMBER needsWelcome CONSTANT)
+    Q_PROPERTY(QVariantList reminders MEMBER reminders CONSTANT)
+    Q_PROPERTY(int recordTouch MEMBER recordTouch CONSTANT)
 
 public:
     SampleBridge() {
@@ -104,6 +106,8 @@ public:
     QVariantList prayerWords;
     bool openingReady = false;
     bool needsWelcome = false;
+    QVariantList reminders;
+    int recordTouch = 0;
     QString selectedDay;
     QString toggledRule;
     int shiftedDirection = 0;
@@ -126,6 +130,12 @@ public:
     Q_INVOKABLE void setMonthShown(bool) {}
     Q_INVOKABLE void shiftMonth(int) {}
     Q_INVOKABLE void noteSayingPan(const QString &) {}
+    Q_INVOKABLE void tickReminders() {}
+    Q_INVOKABLE void syncAutostart() {}
+    Q_INVOKABLE void notificationAction(const QString &, const QString &) {}
+    Q_INVOKABLE QString chooseBackup(bool) { return {}; }
+    Q_INVOKABLE bool backupChooser() const { return false; }
+    Q_INVOKABLE QString programPath() const { return {}; }
     Q_INVOKABLE void shiftWeek(int direction) {
         shiftedDirection = direction;
         week[0] = QVariantMap{{"date", "2026-10-14"}, {"day", 14},

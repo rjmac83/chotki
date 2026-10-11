@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QJsonObject>
 #include <QObject>
 #include <QProcess>
@@ -108,6 +109,8 @@ class Bridge final : public QObject {
     Q_PROPERTY(int motionEvent READ motionEvent NOTIFY changed)
     Q_PROPERTY(bool settingsReady READ settingsReady NOTIFY changed)
     Q_PROPERTY(QVariantMap settings READ settings NOTIFY changed)
+    Q_PROPERTY(QVariantList reminders READ reminders NOTIFY changed)
+    Q_PROPERTY(int recordTouch READ recordTouch NOTIFY changed)
 
 public:
     Bridge(QString program, bool review, QObject *parent = nullptr);
@@ -211,6 +214,8 @@ public:
     int motionEvent() const { return m_motionEvent; }
     bool settingsReady() const { return m_settingsReady; }
     QVariantMap settings() const { return m_settings; }
+    QVariantList reminders() const { return m_reminders; }
+    int recordTouch() const { return m_recordTouch; }
 
     bool snapshotReady() const { return m_snapshotReady; }
     qint64 helperProcessId() const { return m_process.processId(); }
@@ -258,9 +263,18 @@ public:
     Q_INVOKABLE void takeUp(const QString &ruleID);
     Q_INVOKABLE void setAside(const QString &ruleID);
     Q_INVOKABLE void setSpiritualFather(const QString &name);
+    Q_INVOKABLE void tickReminders();
+    Q_INVOKABLE void notificationAction(const QString &name, const QString &selection);
+    Q_INVOKABLE void syncAutostart();
+    Q_INVOKABLE QString chooseBackup(bool saving);
+    Q_INVOKABLE bool backupChooser() const;
+    Q_INVOKABLE QString programPath() const;
 
 signals:
     void changed();
+
+private slots:
+    void onNotificationAction(uint id, const QString &actionKey);
 
 private:
     void start();
@@ -277,6 +291,11 @@ private:
     void applyProgress(const QJsonObject &progress);
     void applyGlossary(const QJsonObject &glossary);
     void applySettings(const QJsonObject &settings);
+    void applyReminders(const QJsonObject &reminders);
+    void postDesktopNotification(const QJsonObject &notice);
+    void closeDesktopNotification(const QString &id);
+    void listenForNotificationActions();
+    bool notificationActions();
     QString soundPlayer() const;
     int newestAcceptedId() const;
 
@@ -296,6 +315,8 @@ private:
     int m_newestGlossaryId = -1;
     int m_newestSettingsId = -1;
     int m_newestMotionId = -1;
+    int m_newestReminderId = -1;
+    int m_recordTouch = 0;
     double m_ropeDiameter = 240;
     int m_restarts = 0;
     bool m_snapshotReady = false;
@@ -404,4 +425,9 @@ private:
     int m_motionEvent = 0;
     bool m_settingsReady = false;
     QVariantMap m_settings;
+    QVariantList m_reminders;
+    QHash<QString, uint> m_postedNotifications;
+    bool m_capabilitiesKnown = false;
+    bool m_actionsSupported = false;
+    bool m_notificationListen = false;
 };

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real Swift core boundary without writing the human review record."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
 import math
 import os
@@ -706,6 +706,155 @@ def main():
         refused = ask("exportBackup", path="relative.json")
         assert refused["ok"] is False
         close(restored)
+
+    with tempfile.TemporaryDirectory(prefix="chotki-reminders-") as directory:
+        config = str(Path(directory) / "config")
+        environment = os.environ.copy()
+        environment["XDG_DATA_HOME"] = directory
+        environment["XDG_CONFIG_HOME"] = config
+        session, ask = conversation(helper, "--normal", environment)
+        assert ask("hello")["mode"] == "normal"
+        moment = datetime.now()
+        when = moment - timedelta(seconds=30)
+        if when.date() != moment.date():
+            when = moment
+        ask("acknowledgeCaution", hideCaution=True)
+        saved = ask(
+            "saveRule", title="A timed reminder", kind="Every day", hasTime=True,
+            hour=when.hour, minute=when.minute, reminders=True, leads=[0],
+        )
+        assert saved["ok"] is True, saved
+        rule_id = next(item["id"] for item in saved["entries"] if item["title"] == "A timed reminder")
+        fired = ask("tickReminders")
+        assert fired["ok"] is True, fired
+        for home_key in ("entries", "week", "selectedDate", "displayName", "today"):
+            assert home_key not in fired, fired
+        notices = fired["reminders"]["show"]
+        assert len(notices) == 1, fired
+        notice = notices[0]
+        assert notice["title"] == "A timed reminder"
+        assert notice["id"].startswith(rule_id + ":") and notice["id"].endswith(":lead0")
+        assert notice["body"].startswith("At ")
+        assert {action["id"]: action["title"] for action in notice["actions"]} == {
+            "complete": "Mark complete",
+            "snooze": "Snooze an hour",
+        }
+        date_in_id = notice["id"].split(":")[1]
+        kept = ask("notificationAction", name=notice["id"], selection="complete")
+        assert kept["ok"] is True, kept
+        assert any(item["id"] == rule_id and item["kept"] for item in kept["entries"])
+        assert notice["id"] in kept["reminders"]["withdraw"]
+        record = str(Path(directory) / "Chotki")
+        status = occurrence_status(record, rule_id, date_in_id)
+        assert status is not None and status[0] == "completed" and status[1]
+        stamped = status[1]
+        quiet = ask("tickReminders")
+        assert all(item["id"] != notice["id"] for item in quiet["reminders"]["show"])
+        assert notice["id"] not in quiet["reminders"]["withdraw"]
+        again = ask("notificationAction", name=notice["id"], selection="complete")
+        assert again["ok"] is True, again
+        assert occurrence_status(record, rule_id, date_in_id)[1] == stamped
+        unknown = ask(
+            "notificationAction",
+            name=f"{uuid.uuid4()}:{date_in_id}:lead0",
+            selection="complete",
+        )
+        assert unknown["ok"] is False
+        assert unknown["error"] == "That rule is not on the selected day."
+
+        ask("acknowledgeCaution", hideCaution=True)
+        windowed = ask(
+            "saveRule", title="A window reminder", kind="Every day", hasTime=True,
+            hour=when.hour, minute=when.minute, reminders=True, leads=[0],
+        )
+        window_rule = next(item["id"] for item in windowed["entries"] if item["title"] == "A window reminder")
+        banner = ask("tickReminders")
+        window_notice = next(
+            item for item in banner["reminders"]["show"] if item["id"].startswith(window_rule + ":")
+        )
+        ask("toggleKept", ruleID=window_rule)
+        taken_back = ask("tickReminders")
+        assert window_notice["id"] in taken_back["reminders"]["withdraw"]
+        assert occurrence_status(record, window_rule, date_in_id)[0] == "completed"
+
+        due = datetime.now() + timedelta(minutes=8)
+        if due.date() == datetime.now().date():
+            ask("acknowledgeCaution", hideCaution=True)
+            later = ask(
+                "saveRule", title="A later reminder", kind="Every day", hasTime=True,
+                hour=due.hour, minute=due.minute, reminders=True, leads=[0, 10],
+            )
+            assert later["ok"] is True, later
+            later_id = next(item["id"] for item in later["entries"] if item["title"] == "A later reminder")
+            upcoming = ask("tickReminders")
+            shown = [item for item in upcoming["reminders"]["show"] if item["id"].startswith(later_id + ":")]
+            assert len(shown) == 1 and shown[0]["id"].endswith(":lead10"), upcoming
+            snoozed = ask("notificationAction", name=shown[0]["id"], selection="snooze")
+            assert snoozed["ok"] is True, snoozed
+            assert "entries" not in snoozed, snoozed
+            assert shown[0]["id"] in snoozed["reminders"]["withdraw"]
+            held = ask("tickReminders")
+            assert all(
+                not item["id"].startswith(later_id + ":") for item in held["reminders"]["show"]
+            ), held
+
+        page = ask("settings")["settings"]
+        assert page["launchAtLogin"] is False
+        desktop = Path(config) / "autostart" / "org.chotki.Chotki.desktop"
+        executable = "/usr/bin/chotki-linux"
+        ask("syncAutostart", executable=executable)
+        assert not desktop.exists()
+        turned = ask("saveSettings", launchAtLogin=True, executable=executable)
+        assert turned["settings"]["launchAtLogin"] is True
+        text = desktop.read_text()
+        assert "Type=Application" in text
+        assert "Name=Chotki" in text
+        assert f"Exec={executable}\n" in text
+        assert "Icon=org.chotki.Chotki" in text
+        assert "X-GNOME-Autostart-enabled=true" in text
+        off = ask("saveSettings", launchAtLogin=False)
+        assert off["settings"]["launchAtLogin"] is False
+        assert not desktop.exists()
+        close(session)
+
+    with tempfile.TemporaryDirectory(prefix="chotki-autostart-relative-") as directory:
+        environment = os.environ.copy()
+        environment["XDG_DATA_HOME"] = directory
+        environment["XDG_CONFIG_HOME"] = "relative-config"
+        relative, ask = conversation(helper, "--normal", environment)
+        ask("saveSettings", launchAtLogin=True, executable="/usr/bin/chotki-linux")
+        assert not Path("relative-config/autostart/org.chotki.Chotki.desktop").exists()
+        close(relative)
+
+    with tempfile.TemporaryDirectory(prefix="chotki-review-reminders-") as review_dir, \
+            tempfile.TemporaryDirectory(prefix="chotki-review-autostart-") as config_dir:
+        environment = os.environ.copy()
+        environment["CHOTKI_LINUX_REVIEW_DIR"] = review_dir
+        environment["XDG_CONFIG_HOME"] = config_dir
+        review, ask = conversation(helper, "--review", environment)
+        tick = ask("tickReminders")
+        assert tick["ok"] is True
+        assert tick["reminders"] == {"show": [], "withdraw": []}
+        for home_key in ("entries", "week", "selectedDate", "displayName", "today"):
+            assert home_key not in tick, tick
+        ask("saveSettings", launchAtLogin=True, executable="/usr/bin/chotki-linux")
+        assert not (Path(config_dir) / "autostart" / "org.chotki.Chotki.desktop").exists()
+        bright = ask("selectDate", date="2027-05-05")
+        fast = next(item for item in bright["entries"] if item["title"] == "The Wednesday and Friday fast")
+        assert fast["dispensed"]
+        before = occurrence_count(review_dir)
+        refused = ask(
+            "notificationAction",
+            name=f"{fast['id']}:2027-05-05:lead0",
+            selection="complete",
+        )
+        assert refused["ok"] is False
+        assert refused["error"] == "Nothing was asked on this day."
+        assert occurrence_count(review_dir) == before
+        close(review)
+
+    human_after = human_review.stat().st_mtime_ns if human_review.exists() else None
+    assert human_before == human_after
 
     print("Swift bridge review actions and normal-data isolation passed")
 

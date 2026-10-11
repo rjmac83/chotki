@@ -2,8 +2,15 @@
 #include "ArtworkImage.h"
 #include "Opening.h"
 
-#include <QGuiApplication>
+#include <QApplication>
+#include <QAction>
 #include <QDir>
+#include <QIcon>
+#include <QKeySequence>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
+#include <QSystemTrayIcon>
 #include <QLockFile>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -21,7 +28,7 @@
 #include <unistd.h>
 
 int main(int argc, char *argv[]) {
-    QGuiApplication application(argc, argv);
+    QApplication application(argc, argv);
     application.setApplicationName("Chotki");
     application.setDesktopFileName("org.chotki.Chotki");
 
@@ -151,5 +158,58 @@ int main(int argc, char *argv[]) {
             window->requestActivate();
         }
     });
+    // A shell with no tray leaves the window exactly as it is. The tray never
+    // hides that window, and a review screenshot does not add one.
+    if (!screenshot && QSystemTrayIcon::isSystemTrayAvailable()) {
+        auto *tray = new QSystemTrayIcon(&application);
+        QPixmap mark(22, 22);
+        mark.fill(Qt::transparent);
+        QPainter painter(&mark);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(QStringLiteral("#c9a227")));
+        painter.drawEllipse(2, 2, 18, 18);
+        painter.end();
+        tray->setIcon(QIcon(mark));
+        tray->setToolTip(QStringLiteral("Chotki"));
+        auto *menu = new QMenu();
+        menu->addAction(QStringLiteral("Open"), window, [window] {
+            window->show();
+            window->raise();
+            window->requestActivate();
+        });
+        auto *silence = menu->addAction(QStringLiteral("Silence notifications"));
+        QObject::connect(&bridge, &Bridge::changed, silence, [&bridge, silence] {
+            if (!bridge.settingsReady()) return;
+            const bool enabled = bridge.settings().value(QStringLiteral("notifications")).toBool();
+            silence->setText(enabled ? QStringLiteral("Silence notifications")
+                                     : QStringLiteral("Enable notifications"));
+        });
+        QObject::connect(silence, &QAction::triggered, &bridge, [&bridge] {
+            const bool enabled = bridge.settingsReady()
+                && bridge.settings().value(QStringLiteral("notifications")).toBool();
+            QVariantMap fields;
+            fields.insert(QStringLiteral("notifications"), !enabled);
+            bridge.saveSettings(fields);
+        });
+        QObject::connect(menu, &QMenu::aboutToShow, &bridge, [&bridge] {
+            if (!bridge.settingsReady()) bridge.showSettings();
+        });
+        menu->addAction(QStringLiteral("Settings"), window, [&bridge, window] {
+            window->setProperty("section", QStringLiteral("Settings"));
+            bridge.showSettings();
+            window->show();
+            window->raise();
+            window->requestActivate();
+        });
+        auto *quit = menu->addAction(QStringLiteral("Quit"));
+        quit->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
+        QObject::connect(quit, &QAction::triggered, &application, &QCoreApplication::quit);
+        tray->setContextMenu(menu);
+        tray->show();
+        qInfo("tray available");
+    } else if (!screenshot) {
+        qInfo("tray unavailable");
+    }
     return application.exec();
 }

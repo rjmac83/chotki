@@ -5,6 +5,10 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QProcess>
+#include <QCoreApplication>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
 #include <QDate>
 #include <QDir>
 #include <QFile>
@@ -144,6 +148,8 @@ struct BridgeResponse {
     QString todayLink;
     bool hasThanksgiving = false;
     QString thanksgiving;
+    bool hasReminders = false;
+    QJsonObject reminders;
     bool home = false;
 };
 
@@ -212,6 +218,8 @@ BridgeResponse decodeResponse(const QJsonObject &object) {
     response.todayLink = object.value("todayLink").toString();
     response.hasThanksgiving = object.contains("thanksgiving");
     response.thanksgiving = object.value("thanksgiving").toString();
+    response.hasReminders = object.contains("reminders");
+    response.reminders = object.value("reminders").toObject();
     // todayLink and thanksgiving are not home by themselves. A prayer reply
     // must not be treated as a day snapshot, and a missing thanksgiving must
     // not count as a new one.
@@ -350,6 +358,57 @@ void Bridge::setSpiritualFather(const QString &name) {
     send("setSpiritualFather", QJsonObject{{"name", name}});
 }
 
+void Bridge::tickReminders() {
+    if (m_review) return;
+    send(QStringLiteral("tickReminders"));
+}
+
+void Bridge::notificationAction(const QString &name, const QString &selection) {
+    if (name.isEmpty() || selection.isEmpty()) return;
+    send(QStringLiteral("notificationAction"),
+         QJsonObject{{QStringLiteral("name"), name}, {QStringLiteral("selection"), selection}});
+}
+
+void Bridge::syncAutostart() {
+    if (m_review) return;
+    send(QStringLiteral("syncAutostart"),
+         QJsonObject{{QStringLiteral("executable"), QCoreApplication::applicationFilePath()}});
+}
+
+QString Bridge::programPath() const {
+    return QCoreApplication::applicationFilePath();
+}
+
+bool Bridge::backupChooser() const {
+    return !QStandardPaths::findExecutable(QStringLiteral("zenity")).isEmpty()
+        || !QStandardPaths::findExecutable(QStringLiteral("kdialog")).isEmpty();
+}
+
+QString Bridge::chooseBackup(bool saving) {
+    // A review window, including the screenshot, must not open a dialog.
+    // Cancelling returns empty so the caller does not fall through to a typed path.
+    if (m_review) return {};
+    const QString zenity = QStandardPaths::findExecutable(QStringLiteral("zenity"));
+    if (!zenity.isEmpty()) {
+        QProcess process;
+        QStringList args{QStringLiteral("--file-selection"), QStringLiteral("--title"),
+                         saving ? QStringLiteral("Export a backup")
+                                : QStringLiteral("Restore a backup")};
+        if (saving) args << QStringLiteral("--save") << QStringLiteral("--confirm-overwrite");
+        process.start(zenity, args);
+        if (!process.waitForFinished(180000) || process.exitCode() != 0) return {};
+        return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+    }
+    const QString kdialog = QStandardPaths::findExecutable(QStringLiteral("kdialog"));
+    if (kdialog.isEmpty()) return {};
+    QProcess process;
+    process.start(kdialog, {saving ? QStringLiteral("--getsavefilename")
+                                   : QStringLiteral("--getopenfilename"),
+                            QDir::homePath()});
+    if (!process.waitForFinished(180000) || process.exitCode() != 0) return {};
+    return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+}
+
 void Bridge::layoutRope(double diameter) {
     if (!(diameter > 0) || diameter > 4096) return;
     m_ropeDiameter = diameter;
@@ -373,6 +432,9 @@ void Bridge::playSound(const QString &name) {
     else return;
     m_lastPlayed = name;
     emit changed();
+    // Reduced motion and a missing player leave the record alone. The cue is
+    // still recorded so the rope test can see that the knot landed.
+    if (m_reducedMotion) return;
     if (file.isEmpty() || !QFileInfo::exists(file)) return;
     if (m_soundPlayer.isEmpty()) m_soundPlayer = soundPlayer();
     if (m_soundPlayer.isEmpty()) return;
@@ -500,7 +562,7 @@ void Bridge::applyTones(const QJsonObject &tones) {
 int Bridge::newestAcceptedId() const {
     return std::max({m_newestSuccessId, m_newestPrayerId, m_newestOpeningId, m_newestToneId,
                      m_newestReadingId, m_newestPsalterId, m_newestLibraryId, m_newestProgressId,
-                     m_newestGlossaryId, m_newestSettingsId, m_newestMotionId});
+                     m_newestGlossaryId, m_newestSettingsId, m_newestMotionId, m_newestReminderId});
 }
 
 void Bridge::readResponses() {
@@ -598,6 +660,19 @@ void Bridge::readResponses() {
             ++m_motionEvent;
             m_error.clear();
         }
+        // A reminder decision is not a day. It must not reset the saying or the
+        // selected date, and it must not schedule another tick by itself.
+        if (response.hasReminders && response.id >= m_newestReminderId) {
+            m_newestReminderId = response.id;
+            applyReminders(response.reminders);
+            m_error.clear();
+        }
+        const bool reminderOnly = response.hasReminders && !response.home && !response.hasPrayer
+            && !response.hasOpening && !response.hasTones && !response.hasReading
+            && !response.hasPsalter && !response.hasLibrary && !response.hasEditor
+            && !response.hasProgress && !response.hasGlossary && !response.hasSettings
+            && !response.hasReducedMotion && !response.hasMode;
+        if (!reminderOnly) ++m_recordTouch;
         if (!response.home || response.id < m_newestSuccessId) {
             emit changed();
             continue;
@@ -647,4 +722,125 @@ void Bridge::readResponses() {
         }
         emit changed();
     }
+}
+
+void Bridge::applyReminders(const QJsonObject &reminders) {
+    const QJsonArray withdraw = reminders.value(QStringLiteral("withdraw")).toArray();
+    for (const QJsonValue &value : withdraw) {
+        const QString id = value.toString();
+        if (id.isEmpty()) continue;
+        for (int index = m_reminders.size() - 1; index >= 0; --index) {
+            if (m_reminders.at(index).toMap().value(QStringLiteral("id")).toString() == id)
+                m_reminders.removeAt(index);
+        }
+        closeDesktopNotification(id);
+    }
+    const QJsonArray show = reminders.value(QStringLiteral("show")).toArray();
+    for (const QJsonValue &value : show) {
+        const QJsonObject notice = value.toObject();
+        const QString id = notice.value(QStringLiteral("id")).toString();
+        if (id.isEmpty()) continue;
+        const QVariantMap map = notice.toVariantMap();
+        bool replaced = false;
+        for (int index = 0; index < m_reminders.size(); ++index) {
+            if (m_reminders.at(index).toMap().value(QStringLiteral("id")).toString() == id) {
+                m_reminders[index] = map;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) m_reminders.push_back(map);
+        postDesktopNotification(notice);
+    }
+}
+
+bool Bridge::notificationActions() {
+    if (m_capabilitiesKnown) return m_actionsSupported;
+    m_capabilitiesKnown = true;
+    const QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) return false;
+    QDBusInterface iface(QStringLiteral("org.freedesktop.Notifications"),
+                         QStringLiteral("/org/freedesktop/Notifications"),
+                         QStringLiteral("org.freedesktop.Notifications"), bus);
+    if (!iface.isValid()) return false;
+    const QDBusReply<QStringList> caps = iface.call(QStringLiteral("GetCapabilities"));
+    if (!caps.isValid()) return false;
+    m_actionsSupported = caps.value().contains(QStringLiteral("actions"));
+    return m_actionsSupported;
+}
+
+void Bridge::listenForNotificationActions() {
+    if (m_notificationListen) return;
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) return;
+    m_notificationListen = bus.connect(
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"),
+        QStringLiteral("ActionInvoked"),
+        this, SLOT(onNotificationAction(uint,QString)));
+}
+
+void Bridge::postDesktopNotification(const QJsonObject &notice) {
+    if (m_review) return;
+    const QString id = notice.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) return;
+    qInfo("reminder %s", qUtf8Printable(id));
+    const QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) return;
+    listenForNotificationActions();
+    QDBusInterface iface(QStringLiteral("org.freedesktop.Notifications"),
+                         QStringLiteral("/org/freedesktop/Notifications"),
+                         QStringLiteral("org.freedesktop.Notifications"), bus);
+    if (!iface.isValid()) return;
+    QStringList actions;
+    if (notificationActions()) {
+        const QJsonArray buttons = notice.value(QStringLiteral("actions")).toArray();
+        for (const QJsonValue &button : buttons) {
+            const QJsonObject action = button.toObject();
+            const QString key = action.value(QStringLiteral("id")).toString();
+            const QString title = action.value(QStringLiteral("title")).toString();
+            if (key.isEmpty() || title.isEmpty()) continue;
+            actions << key << title;
+        }
+    }
+    const uint replaces = m_postedNotifications.value(id, 0);
+    const QDBusReply<uint> posted = iface.call(
+        QStringLiteral("Notify"),
+        QStringLiteral("Chotki"),
+        replaces,
+        QString(),
+        notice.value(QStringLiteral("title")).toString(),
+        notice.value(QStringLiteral("body")).toString(),
+        actions,
+        QVariantMap(),
+        0);
+    if (!posted.isValid() || posted.value() == 0) return;
+    m_postedNotifications.insert(id, posted.value());
+    qInfo("reminder %s dbus %u", qUtf8Printable(id), posted.value());
+}
+
+void Bridge::closeDesktopNotification(const QString &id) {
+    const uint posted = m_postedNotifications.value(id, 0);
+    if (posted == 0) return;
+    m_postedNotifications.remove(id);
+    const QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) return;
+    QDBusInterface iface(QStringLiteral("org.freedesktop.Notifications"),
+                         QStringLiteral("/org/freedesktop/Notifications"),
+                         QStringLiteral("org.freedesktop.Notifications"), bus);
+    if (!iface.isValid()) return;
+    iface.call(QStringLiteral("CloseNotification"), posted);
+}
+
+void Bridge::onNotificationAction(uint id, const QString &actionKey) {
+    QString requestId;
+    for (auto it = m_postedNotifications.cbegin(); it != m_postedNotifications.cend(); ++it) {
+        if (it.value() == id) {
+            requestId = it.key();
+            break;
+        }
+    }
+    if (requestId.isEmpty() || actionKey.isEmpty()) return;
+    notificationAction(requestId, actionKey);
 }

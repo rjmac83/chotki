@@ -176,6 +176,8 @@ The window already has to be complete. This phase connects it to the session.
 
 **Gate.** On a real GNOME session, a synthetic rule fires a notification, Mark kept writes the occurrence, and Quit leaves no helper behind. The same build then runs the reminder action on Plasma and on Xfce, or records the exact session where an action is unavailable and still completes from the window.
 
+**Checked on the ARM64 guest (2026-10-11):** the bridge check, the nine window tests, an offscreen window, and a 1100×860 review screenshot of 406850 bytes passed. On the running GNOME Wayland session the window opened through XWayland. A synthetic rule for that minute posted a notification titled "A session reminder," with the body "At 11:37" and the actions Mark complete and Snooze an hour. The daemon reports actions, body, body-markup, icon-static, persistence, and sound. A pointer click on Mark kept in the window wrote an occurrence for 2026-10-11 with status completed and a completedAt. The shell listed those action buttons without a size, so the keep was taken on the window. SIGTERM of the window left no helper. The window logged that a tray is available and stayed visible. Plasma and Xfce are not running on this guest. The file chooser on this guest is zenity. Open at login is the Settings switch. It writes an XDG autostart file only when the reader turns it on. The window has no Dock switch. The Ubuntu 24.04 `amd64` half of this gate is the GitHub workflow.
+
 ## Phase 4 — The package is the product
 
 An alpha `.deb` already installs and opens. This phase makes that package the thing a reviewer can trust.
@@ -215,4 +217,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-Phase 3, when that work is asked for. Slices 2.1 through 2.9 are recorded above.
+Phase 4, when that work is asked for. Phase 3 is recorded above.

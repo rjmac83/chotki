@@ -35,6 +35,8 @@ ApplicationWindow {
     property bool openPsalter: false
     property string watchedDate: bridge.selectedDate || ""
     property int heardThanks: -1
+    property int heardRecord: -1
+    property bool autostartSynced: false
     onWatchedDateChanged: window.dismissThanks()
 
     function notePrayer() {
@@ -157,6 +159,35 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+Shift+S"
         onActivated: window.sidebarCollapsed = !window.sidebarCollapsed
+    }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: Qt.quit() }
+
+    Timer {
+        id: reminderClock
+        interval: 30000
+        repeat: true
+        running: bridge.connected === true && bridge.review !== true
+        onTriggered: if (bridge.tickReminders) bridge.tickReminders()
+    }
+    Timer {
+        id: reminderNudge
+        interval: 30
+        onTriggered: if (bridge.tickReminders && bridge.review !== true) bridge.tickReminders()
+    }
+
+    function noteSession() {
+        if (bridge.review === true || autostartSynced || bridge.connected !== true) return
+        if (!bridge.syncAutostart) return
+        autostartSynced = true
+        bridge.syncAutostart()
+    }
+
+    function noteRecord() {
+        if (bridge.review === true) return
+        const touch = bridge.recordTouch
+        if (touch === undefined || touch === null || touch === heardRecord) return
+        heardRecord = touch
+        reminderNudge.restart()
     }
 
     FontLoader { id: charter; source: "fonts/XCharter-Roman.otf" }
@@ -478,6 +509,87 @@ ApplicationWindow {
             window.maybeOpen()
             window.noteThanks()
             window.ensureWelcome()
+            window.noteSession()
+            window.noteRecord()
+        }
+    }
+
+    Item {
+        id: reminderBanner
+        objectName: "reminder-banner"
+        z: 25
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: window.sidebarCollapsed ? 58 : 188
+        anchors.rightMargin: 12
+        anchors.bottomMargin: 12
+        visible: notices.length > 0
+        height: visible ? notices.length * 56 : 0
+        property var notices: {
+            const list = bridge.reminders
+            if (!list || !list.length) return []
+            return list
+        }
+
+        Repeater {
+            model: reminderBanner.notices
+            delegate: Item {
+                id: notice
+                property var noticeData: modelData
+                y: index * 56
+                width: reminderBanner.width
+                height: 56
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: window.panel
+                    border.color: window.line
+                }
+                Label {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 14
+                    anchors.right: actionsRow.left
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: (notice.noticeData.title || "")
+                          + (notice.noticeData.body ? "\n" + notice.noticeData.body : "")
+                    color: window.parchment
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                }
+                Row {
+                    id: actionsRow
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    Repeater {
+                        model: notice.noticeData.actions || []
+                        delegate: Item {
+                            property var actionData: modelData
+                            width: Math.max(32, actionText.implicitWidth + 16)
+                            height: 32
+                            Label {
+                                id: actionText
+                                anchors.centerIn: parent
+                                text: actionData.title || ""
+                                color: window.gold
+                                font.pixelSize: 13
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                objectName: "reminder-action-" + (actionData.id || "")
+                                onClicked: {
+                                    if (bridge.notificationAction)
+                                        bridge.notificationAction(notice.noticeData.id, actionData.id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -515,5 +627,6 @@ ApplicationWindow {
     Component.onCompleted: {
         ensureWelcome()
         maybeOpen()
+        noteSession()
     }
 }

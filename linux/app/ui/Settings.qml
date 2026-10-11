@@ -22,6 +22,15 @@ Item {
         if (!fatherField.activeFocus) fatherField.text = page.spiritualFatherName || ""
     }
 
+    function backupTarget(saving) {
+        if (bridge.chooseBackup) {
+            const picked = bridge.chooseBackup(saving)
+            if (picked && String(picked).length) return String(picked)
+            if (bridge.backupChooser && bridge.backupChooser()) return ""
+        }
+        return backupPath.text || ""
+    }
+
     Connections {
         target: bridge
         function onChanged() { settings.syncFields() }
@@ -450,7 +459,10 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: bridge.exportBackup(backupPath.text || "")
+                        onClicked: {
+                            const path = settings.backupTarget(true)
+                            if (path.length) bridge.exportBackup(path)
+                        }
                     }
                 }
                 Item {
@@ -466,7 +478,10 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: bridge.importBackup(backupPath.text || "")
+                        onClicked: {
+                            const path = settings.backupTarget(false)
+                            if (path.length) bridge.importBackup(path)
+                        }
                     }
                 }
                 Label {
@@ -487,6 +502,32 @@ Item {
                 }
 
                 Label { text: "General"; color: settings.muted; font.pixelSize: 13; topPadding: 14; bottomPadding: 4 }
+                Item {
+                    objectName: "settings-launch-at-login"
+                    width: parent.width
+                    height: 36
+                    Label {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Open at login"
+                        color: settings.parchment
+                        font.pixelSize: 14
+                    }
+                    Label {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: settings.page.launchAtLogin === true ? "On" : "Off"
+                        color: settings.page.launchAtLogin === true ? settings.gold : settings.muted
+                        font.pixelSize: 13
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: bridge.saveSettings({
+                            launchAtLogin: settings.page.launchAtLogin !== true,
+                            executable: bridge.programPath ? bridge.programPath() : ""
+                        })
+                    }
+                }
                 Item {
                     objectName: "settings-figure"
                     width: parent.width

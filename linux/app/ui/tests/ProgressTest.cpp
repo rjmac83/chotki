@@ -80,6 +80,7 @@ class ProgressTest final : public QObject {
         auto session = std::make_unique<Session>();
         if (!session->directory.isValid()) return nullptr;
         qputenv("XDG_DATA_HOME", session->directory.path().toUtf8());
+        qputenv("XDG_CONFIG_HOME", session->directory.path().toUtf8());
         session->bridge = std::make_unique<Bridge>(program, false);
         session->engine.rootContext()->setContextProperty("bridge", session->bridge.get());
         session->engine.rootContext()->setContextProperty("playOpening", false);

@@ -82,6 +82,7 @@ private slots:
         QVERIFY(directory.isValid());
         QVERIFY2(directory.path().startsWith(QLatin1Char('/')), "The normal record must be an absolute path");
         qputenv("XDG_DATA_HOME", directory.path().toUtf8());
+        qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
 
         Bridge bridge(program, false);
         QQmlApplicationEngine engine;

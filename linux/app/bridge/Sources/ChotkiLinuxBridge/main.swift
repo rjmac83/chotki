@@ -249,7 +249,7 @@ private func panStart(identity: String, persist: Bool) -> Date {
     return now
 }
 
-private func dayPractice(_ store: SQLiteStore, on date: CalendarDate) throws -> Practice {
+func dayPractice(_ store: SQLiteStore, on date: CalendarDate) throws -> Practice {
     let settings = try store.loadSettings() ?? .default
     let liturgical = LiturgicalService(store: store, jurisdiction: settings.jurisdiction,
                                       networkPolicy: .never)
@@ -318,6 +318,9 @@ do {
     var reading = ReadingSession()
     var psalter = PsalterSession()
     var library = LibrarySession()
+    // One ticker for the process. A new one on each request would forget what
+    // had already been shown, and the first tick would wipe a snooze.
+    var ticker = ReminderTicker()
 
     while let line = readLine() {
         let decoded = try? JSONDecoder().decode(BridgeRequest.self, from: Data(line.utf8))
@@ -460,8 +463,17 @@ do {
             case "glossary":
                 try performGlossary(request, store: store)
 
-            case "settings", "saveSettings", "exportBackup", "importBackup":
-                try performSettings(request, store: store, on: selectedDate, weekCenter: weekCenter)
+            case "settings", "saveSettings", "exportBackup", "importBackup", "syncAutostart":
+                try performSettings(request, store: store, on: selectedDate, weekCenter: weekCenter,
+                                    review: mode.isReview)
+
+            case "tickReminders":
+                try performTickReminders(id: id, store: store, review: mode.isReview, ticker: &ticker)
+
+            case "notificationAction":
+                try performNotificationAction(
+                    request, store: store, on: selectedDate, weekCenter: weekCenter, ticker: &ticker
+                )
 
             case "opening":
                 respond(openingSuccess(id: id))
