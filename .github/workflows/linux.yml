@@ -71,7 +71,24 @@ jobs:
           bridge=$(swift build --show-bin-path --package-path linux/app/bridge -c release)/ChotkiLinuxBridge
           linux/tools/package-deb.sh linux/app/ui/release/chotki-linux "$bridge" linux/dist
           dpkg-deb --contents linux/dist/*.deb > /tmp/chotki-package-contents.txt
-          sed -n '1,20p' /tmp/chotki-package-contents.txt
+          dpkg-deb --info linux/dist/*.deb | tee /tmp/chotki-package-info.txt
+          grep -q 'usr/share/doc/chotki/Qt-LGPL-NOTICE.txt' /tmp/chotki-package-contents.txt
+          grep -q 'usr/share/doc/chotki/LGPL-3.txt' /tmp/chotki-package-contents.txt
+          grep -q 'usr/share/doc/chotki/RUNTIME.txt' /tmp/chotki-package-contents.txt
+          grep -q 'usr/share/doc/chotki/Swift-LICENSE.txt' /tmp/chotki-package-contents.txt
+          grep -q 'usr/share/doc/chotki/XCharter-LICENSE.txt' /tmp/chotki-package-contents.txt
+          grep -q 'usr/share/applications/org.chotki.Chotki.desktop' /tmp/chotki-package-contents.txt
+          grep -q 'org.chotki.Chotki.png' /tmp/chotki-package-contents.txt
+          grep -q 'progress.jpg' /tmp/chotki-package-contents.txt
+          grep -q 'kjv.json' /tmp/chotki-package-contents.txt
+          grep -q 'psalter.json' /tmp/chotki-package-contents.txt
+          grep -q 'calendar/manifest.json' /tmp/chotki-package-contents.txt
+          grep -q 'Version: 0.1.0~alpha2' /tmp/chotki-package-info.txt
+          grep -q sqlite /tmp/chotki-package-info.txt
+          if grep -q '/home/' /tmp/chotki-package-contents.txt; then
+            echo "package contains a home path" >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: chotki-linux-amd64-alpha
@@ -83,6 +100,7 @@ jobs:
     needs: amd64-shell
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: chotki-linux-amd64-alpha
@@ -109,3 +127,34 @@ jobs:
           file /tmp/chotki-installed.png | grep -q 'PNG image data, 1100 x 860'
           test "$(stat -c%s /tmp/chotki-installed.png)" -gt 100000
           test -f "$HOME/.cache/chotki-linux-review/chotki.sqlite"
+          test -f /usr/share/doc/chotki/Qt-LGPL-NOTICE.txt
+          test -f /usr/share/doc/chotki/LGPL-3.txt
+          test -f /usr/share/doc/chotki/RUNTIME.txt
+          test -f /usr/share/applications/org.chotki.Chotki.desktop
+          dpkg-query -W -f='${Depends}\n' chotki | tr ',' '\n' | awk '{print $1}' \
+            | grep -Ex 'g\+\+|gcc|cmake|swift|build-essential' && exit 1 || true
+      - name: Keep the record across reinstall, upgrade, and removal
+        run: |
+          set -eu
+          data=$(mktemp -d)
+          restored=$(mktemp -d)
+          CHOTKI_EXPECT_VERSION="Linux alpha 0.1.0~alpha2" \
+            python3 linux/tools/installed-flow.py \
+            /usr/lib/chotki/ChotkiLinuxBridge "$data" "$restored"
+          db="$data/Chotki/chotki.sqlite"
+          sum=$(sha256sum "$db")
+          sudo apt-get install -y --reinstall ./linux-dist/*.deb
+          test "$(sha256sum "$db")" = "$sum"
+          stage=$(mktemp -d)
+          dpkg-deb -R ./linux-dist/*.deb "$stage"
+          sed -i 's/^Version: .*/Version: 0.1.0~alpha3/' "$stage/DEBIAN/control"
+          dpkg-deb --build --root-owner-group "$stage" /tmp/chotki-upgrade.deb
+          sudo dpkg -i /tmp/chotki-upgrade.deb
+          test "$(dpkg-query -W -f='${Version}' chotki)" = "0.1.0~alpha3"
+          test "$(sha256sum "$db")" = "$sum"
+          sudo apt-get remove -y chotki
+          test ! -e /usr/lib/chotki
+          test ! -e /usr/bin/chotki
+          test ! -e /usr/share/applications/org.chotki.Chotki.desktop
+          test ! -e /usr/share/doc/chotki
+          test "$(sha256sum "$db")" = "$sum"

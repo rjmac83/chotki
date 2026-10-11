@@ -190,6 +190,8 @@ An alpha `.deb` already installs and opens. This phase makes that package the th
 
 **Gate.** A clean Ubuntu 24.04 `amd64` VM with no compilers installs the `.deb`, runs that flow, upgrades without losing the record, and uninstalls without deleting it.
 
+**Checked on the ARM64 guest (2026-10-11):** the flow script, against the existing debug helper, took on Morning prayers, marked it kept for 2026-10-11, exported the record, and restored that completed occurrence into a second data directory. That helper still reports Linux alpha 0.1.0~alpha1. The package was not installed on the guest. The package script bundles the Swift libraries the release binaries link, takes Qt, QML, and SQLite from Ubuntu packages, and writes the Qt LGPL notice, the LGPL-3 text, and the runtime note beside the Swift, XCharter, and app licenses. The version handed to a reviewer is 0.1.0~alpha2, and it does not follow the macOS build number. There is no `postrm`, so removing the package leaves the data directory in place. The Ubuntu 24.04 `amd64` half of this gate is the GitHub workflow. That job installs the `.deb` and its runtime dependencies without adding a compiler, runs the same flow, reinstalls, upgrades to a local 0.1.0~alpha3 that is not uploaded, and removes the package. The record checksum is required to stay the same, and Depends must not name a compiler.
+
 ## Phase 5 — Accept or hold
 
 - Run the installed package on GNOME, Plasma, and Xfce. Check startup, scaling, fonts, focus, scrolling, resize, notifications, dialogs, sound, the theme, reduced motion, and the path with no tray.
@@ -217,4 +219,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-Phase 4, when that work is asked for. Phase 3 is recorded above.
+Phase 5, when that work is asked for. Phase 4 is recorded above.

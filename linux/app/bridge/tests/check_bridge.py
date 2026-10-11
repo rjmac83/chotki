@@ -659,7 +659,7 @@ def main():
         assert any("not a substitute for a priest" in "".join(span["text"] for span in paragraph["spans"])
                    for paragraph in page["welcomeParagraphs"])
         assert page["fasting"] == "shown" and page["feasts"] == "shown"
-        assert page["version"] == "Linux alpha 0.1.0~alpha1"
+        assert page["version"] == "Linux alpha 0.1.0~alpha2"
         assert page["backupDirectory"].endswith("/Chotki/backups")
         saved = ask("saveSettings", name="Helen", church="Romanian Orthodox Church", welcome=True)
         assert saved["displayName"] == "Helen" and saved["needsWelcome"] is False

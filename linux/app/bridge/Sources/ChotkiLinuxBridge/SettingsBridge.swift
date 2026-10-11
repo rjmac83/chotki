@@ -5,7 +5,7 @@ import Foundation
 // Core decides the church, the calendar, and the welcome words. This file
 // only carries them to the window and writes the record.
 
-let linuxAlphaVersion = "Linux alpha 0.1.0~alpha1"
+let linuxAlphaVersion = "Linux alpha 0.1.0~alpha2"
 
 /// The directory that holds chotki.sqlite. Set once, when the helper opens.
 /// The helper handles one record on one thread.

@@ -2,7 +2,11 @@
 set -euo pipefail
 
 # Package already-built release binaries on the target Ubuntu architecture.
-# This is an alpha proof; clean-install and licensing gates still apply.
+#
+# Runtime policy: the Swift libraries the helper actually links are bundled.
+# Qt, QML, and SQLite stay the Ubuntu packages named in Depends. The Linux
+# version stays on the 0.1.0~alpha series and does not follow the macOS build
+# number. Bump CHOTKI_PACKAGE_VERSION for every package handed to a reviewer.
 if [[ $# -ne 3 ]]; then
     echo "Usage: package-deb.sh /path/to/chotki-linux /path/to/ChotkiLinuxBridge output-dir" >&2
     exit 2
@@ -13,7 +17,7 @@ helper=$(realpath "$2")
 output=$(realpath -m "$3")
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 arch=$(dpkg --print-architecture)
-version=${CHOTKI_PACKAGE_VERSION:-0.1.0~alpha1}
+version=${CHOTKI_PACKAGE_VERSION:-0.1.0~alpha2}
 package="$output/chotki_${version}_${arch}.deb"
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
@@ -33,6 +37,15 @@ install -d "$stage/DEBIAN" "$stage/usr/bin" "$stage/usr/lib/chotki/swift" \
 install -m755 "$window" "$stage/usr/lib/chotki/chotki-linux"
 install -m755 "$helper" "$stage/usr/lib/chotki/ChotkiLinuxBridge"
 cp -a "$core_bundle" "$stage/usr/lib/chotki/"
+# Prayer texts are compiled into the helper. The calendar, scripture, Psalter,
+# and saint lives travel in the core bundle, in either the flat or archived layout.
+for resource in calendar/manifest.json calendar/kjv.json psalter.json saint-lives.json; do
+    if [[ ! -f "$stage/usr/lib/chotki/ChotkiCore_ChotkiCore.bundle/$resource" &&
+          ! -f "$stage/usr/lib/chotki/ChotkiCore_ChotkiCore.bundle/Resources/$resource" ]]; then
+        echo "Core bundle is missing $resource" >&2
+        exit 1
+    fi
+done
 install -m644 "$repo_root/ios/Chotki/Assets.xcassets/AppIcon.appiconset/icon-1024.png" \
     "$stage/usr/share/icons/hicolor/1024x1024/apps/org.chotki.Chotki.png"
 install -m644 "$repo_root/LICENSE" "$stage/usr/share/doc/chotki/LICENSE"
@@ -92,6 +105,59 @@ dependencies+=(qt6-qpa-plugins qml6-module-qtquick qml6-module-qtquick-controls 
     qml6-module-qtqml-models \
     qml6-module-qtqml-workerscript)
 depends=$(printf '%s\n' "${dependencies[@]}" | sort -u | paste -sd, -)
+if ldd "$helper" | grep -q 'libsqlite3\.so'; then
+    printf '%s\n' "$depends" | grep -q sqlite || {
+        echo "The helper links SQLite, and no SQLite package is in Depends" >&2
+        exit 1
+    }
+fi
+
+qt_packages=()
+while IFS= read -r package_name; do
+    case "$package_name" in
+        libqt6*|qt6-*|qml6-*) qt_packages+=("$package_name") ;;
+    esac
+done < <(printf '%s\n' "$depends" | tr ',' '\n')
+[[ ${#qt_packages[@]} -gt 0 ]] || { echo "No Qt package is in Depends" >&2; exit 1; }
+lgpl=/usr/share/common-licenses/LGPL-3
+[[ -f "$lgpl" ]] || { echo "The LGPL-3 text is not on this system" >&2; exit 1; }
+install -m644 "$lgpl" "$stage/usr/share/doc/chotki/LGPL-3.txt"
+
+{
+    echo "Qt LGPL notice"
+    echo
+    echo "The window loads Qt dynamically and this package does not ship those libraries."
+    echo "The modules in use are Qt Core, Qt GUI, Qt Widgets, Qt Network, Qt DBus,"
+    echo "Qt QML, Qt Quick, Qt Quick Controls, Qt Quick Layouts, and Qt Quick Templates."
+    echo "They are used under the GNU Lesser General Public License, version 3."
+    echo "Chotki does not modify Qt. The corresponding source is the Ubuntu source"
+    echo "package for each binary package below, available with apt-get source."
+    echo "A modified Qt can be substituted on the system without rebuilding Chotki."
+    echo "The license text is LGPL-3.txt in this directory."
+    echo
+    echo "Ubuntu packages:"
+    printf '  %s\n' "${qt_packages[@]}"
+} > "$stage/usr/share/doc/chotki/Qt-LGPL-NOTICE.txt"
+
+cat > "$stage/usr/share/doc/chotki/RUNTIME.txt" <<RUNTIME
+Chotki Linux runtime
+
+Package version: $version
+This label is the Linux alpha series. It does not follow the macOS build number.
+Bump it for every package handed to a reviewer.
+
+The Swift libraries the helper links are bundled in /usr/lib/chotki/swift.
+Qt and QML are not bundled. They come from the Ubuntu packages named in Depends.
+SQLite is the system library the helper links, also from Ubuntu.
+Prayer texts are compiled into the helper. The calendar, scripture, Psalter,
+and saint lives are in the core bundle beside the helper.
+Artwork and the progress image are in /usr/share/chotki/Resources.
+XCharter is stored in the window. Its license is XCharter-LICENSE.txt.
+
+The record stays in \$XDG_DATA_HOME/Chotki, or in ~/.local/share/Chotki when
+that variable is unset or is not an absolute path. Removing, reinstalling,
+or upgrading this package does not delete that directory.
+RUNTIME
 
 cat > "$stage/DEBIAN/control" <<CONTROL
 Package: chotki
@@ -102,8 +168,8 @@ Architecture: $arch
 Maintainer: Chotki project <noreply@github.com>
 Depends: $depends
 Description: Chotki Linux desktop alpha
- A desktop shell for the Chotki prayer rule. This alpha package is for
- technical review and is not yet a complete port of the macOS application.
+ A desktop shell for the Chotki prayer rule.
+ This alpha is for review. It is not a published release.
 CONTROL
 
 mkdir -p "$output"

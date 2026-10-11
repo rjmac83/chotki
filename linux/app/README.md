@@ -64,7 +64,11 @@ changed routes in GNOME.
 An early `arm64` alpha `.deb` built and installed on the Ubuntu 26.04 guest;
 its installed review window launched. The package script
 bundles the Swift runtime libraries used by the helper and declares system
-Qt/QML packages. The same GitHub run built an `amd64` `.deb`, installed it on
+Qt/QML packages. The reviewer package is 0.1.0~alpha2. SQLite stays the
+Ubuntu library the helper links. The Qt LGPL notice, the LGPL-3 text, and a
+runtime note ship beside the Swift, XCharter, and app licenses. Removing the
+package leaves `XDG_DATA_HOME/Chotki` in place. The clean-install check is the
+GitHub workflow, recorded in `linux/COMPLETION.md`. The same GitHub run built an `amd64` `.deb`, installed it on
 a separate Ubuntu 24.04 runner, and launched the installed review window. The
 package is available as that run's `chotki-linux-amd64-alpha` artifact and
 is also copied into the local gitignored `linux/dist/` folder. This is a
