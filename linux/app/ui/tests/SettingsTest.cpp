@@ -117,12 +117,29 @@ private slots:
         QVERIFY(name);
         QCOMPARE(name->property("text").toString(), QStringLiteral("Helen"));
 
-        const QString romanian = QStringLiteral("welcome-church-Romanian Orthodox Church");
+        QQuickItem *pageTitle = findItem(window->contentItem(), QStringLiteral("page-title"));
+        QVERIFY(pageTitle);
+        QVERIFY(!pageTitle->isVisible());
+
         QQuickItem *church = nullptr;
-        QTRY_VERIFY_WITH_TIMEOUT((church = shown(window, QStringLiteral("welcome-scroll"), romanian))
+        QTRY_VERIFY_WITH_TIMEOUT((church = shown(window, QStringLiteral("welcome-scroll"),
+                                                 QStringLiteral("welcome-church")))
                                  && centerInView(findItem(window->contentItem(), QStringLiteral("welcome-scroll")), church),
                                  3000);
+        const QStringList choices = church->property("model").toStringList();
+        const int romanianIndex = choices.indexOf(QStringLiteral("Romanian Orthodox Church"));
+        QVERIFY(romanianIndex > 0);
         click(window, church);
+        QQuickItem *menu = nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT((menu = findItem(window->contentItem(), QStringLiteral("welcome-church-list")))
+                                 && menu->isVisible(), 3000);
+        QVERIFY(QMetaObject::invokeMethod(menu, "positionViewAtIndex",
+                                           Q_ARG(int, romanianIndex), Q_ARG(int, 1)));
+        const QString romanian = QStringLiteral("welcome-church-Romanian Orthodox Church");
+        QQuickItem *choice = nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT((choice = findItem(window->contentItem(), romanian))
+                                 && choice->isVisible() && choice->width() > 2.0, 3000);
+        click(window, choice);
 
         QQuickItem *next = nullptr;
         QTRY_VERIFY_WITH_TIMEOUT((next = shown(window, QStringLiteral("welcome-scroll"),
@@ -142,6 +159,10 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT((note = findItem(window->contentItem(), QStringLiteral("settings-akathist")))
                                  && note->property("text").toString().contains(
                                      QStringLiteral("Orthodox Church in America")), 8000);
+        QQuickItem *savedChurch = nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT((savedChurch = shown(window, QStringLiteral("settings-scroll"),
+                                                      QStringLiteral("settings-church-Romanian Orthodox Church")))
+                                 && savedChurch->property("selected").toBool(), 3000);
 
         QQuickItem *motion = nullptr;
         QTRY_VERIFY_WITH_TIMEOUT((motion = shown(window, QStringLiteral("settings-scroll"),

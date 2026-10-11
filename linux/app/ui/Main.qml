@@ -347,12 +347,12 @@ ApplicationWindow {
                 spacing: 0
 
                 RowLayout {
+                    // The welcome page already carries the title from core.
+                    visible: !window.welcoming()
                     Layout.fillWidth: true
                     Label {
                         objectName: "page-title"
-                        text: window.welcoming()
-                              ? (bridge.settings.welcomeTitle || "Welcome")
-                              : (window.section === "Home" ? window.greeting() : window.section)
+                        text: window.section === "Home" ? window.greeting() : window.section
                         color: window.parchment
                         font.family: charter.status === FontLoader.Ready ? charter.name : "serif"
                         font.pixelSize: 28

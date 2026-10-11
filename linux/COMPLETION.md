@@ -205,6 +205,8 @@ An alpha `.deb` already installs and opens. This phase makes that package the th
 
 **Decision: hold.** The daily actions that were run here completed, and the record checks from Phase 4 still stand. Plasma, Xfce, and a person's comparison of this window with the Mac are still open. The branch stays source plus a CI artifact. This is not a published release.
 
+On 2026-10-11 the welcome page in that package could not be finished: the church names were an unscrolling list, so Continue sat below the window, the shell repeated the title Welcome, and the edge fade was drawn over the page. The list is now a dropdown, the shell title is hidden while that page is up, and the fade is not drawn there. The words still come from Welcome. The hold is unchanged.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.
