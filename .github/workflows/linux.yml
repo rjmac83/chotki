@@ -33,6 +33,8 @@ jobs:
             qml6-module-qtqml-models \
             qml6-module-qtqml-workerscript \
             qt6-qpa-plugins
+      - name: Run the core suite
+        run: swift test --package-path core -j 2
       - name: Build Swift bridge
         run: swift build --package-path linux/app/bridge -j 2
       - name: Exercise core-backed day actions and record isolation
@@ -63,12 +65,20 @@ jobs:
           set -e
           cat /tmp/chotki-ui.log
           test "$result" -eq 124
+          grep -q 'tray unavailable' /tmp/chotki-ui.log
       - name: Build release binaries and alpha package
         run: |
           swift build --package-path linux/app/bridge -c release -j 2
           cmake -S linux/app/ui -B linux/app/ui/release -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build linux/app/ui/release -j 2
           bridge=$(swift build --show-bin-path --package-path linux/app/bridge -c release)/ChotkiLinuxBridge
+          file linux/app/ui/release/chotki-linux "$bridge" | tee /tmp/chotki-release-file.txt
+          grep -q 'x86-64' /tmp/chotki-release-file.txt
+          ldd linux/app/ui/release/chotki-linux "$bridge" | tee /tmp/chotki-release-ldd.txt
+          if grep -q 'not found' /tmp/chotki-release-ldd.txt; then
+            echo "A release binary has an unresolved library" >&2
+            exit 1
+          fi
           linux/tools/package-deb.sh linux/app/ui/release/chotki-linux "$bridge" linux/dist
           dpkg-deb --contents linux/dist/*.deb > /tmp/chotki-package-contents.txt
           dpkg-deb --info linux/dist/*.deb | tee /tmp/chotki-package-info.txt
@@ -110,7 +120,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ./linux-dist/*.deb
           dpkg-query -W -f='${Package} ${Version} ${Architecture}\n' chotki
-          file /usr/lib/chotki/chotki-linux /usr/lib/chotki/ChotkiLinuxBridge
+          file /usr/lib/chotki/chotki-linux /usr/lib/chotki/ChotkiLinuxBridge | tee /tmp/chotki-installed-file.txt
+          grep -q 'x86-64' /tmp/chotki-installed-file.txt
+          test "$(dpkg-query -W -f='${Architecture}' chotki)" = amd64
+          LD_LIBRARY_PATH=/usr/lib/chotki/swift \
+            ldd /usr/lib/chotki/chotki-linux /usr/lib/chotki/ChotkiLinuxBridge \
+            | tee /tmp/chotki-installed-ldd.txt
+          if grep -q 'not found' /tmp/chotki-installed-ldd.txt; then
+            echo "The installed package has an unresolved library" >&2
+            exit 1
+          fi
       - name: Render installed review screen headlessly
         run: |
           test -d /usr/lib/chotki/ChotkiCore_ChotkiCore.bundle

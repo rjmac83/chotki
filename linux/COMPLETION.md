@@ -201,6 +201,10 @@ An alpha `.deb` already installs and opens. This phase makes that package the th
 
 **Gate.** No missing daily action and no record corruption. The `.deb` target is the one that was installed clean. Differences across desktops are written down. Only then decide whether to publish a Linux alpha. Until that decision, the branch stays source plus a CI artifact.
 
+**Checked on the ARM64 guest (2026-10-11):** the core suite passed, 453 tests in 81 suites. The bridge check and the nine window tests passed. The window binary contains XCharter Roman and XCharter Bold. Offscreen, the process stayed up and logged that a tray is unavailable. Review grabs of Home, Prayers, Reading, Library, Progress, Glossary, and Settings were 1100×860, and the same pages at a scale of 2 were 2200×1720. The Home grab is 407374 bytes. On the running GNOME Wayland session the window opened through XWayland at 1100×860, logged that a tray is available, and stayed visible. Resizing that viewable window made it 900×700, and it stayed mapped. A name search also finds an unmapped 1×1 window titled Chotki. SIGTERM of the window left no helper. A synthetic rule posted a notification titled "A session reminder," body "At 14:07," with Mark complete and Snooze an hour, and the daemon accepted it. The daemon reports actions, body, body-markup, icon-static, persistence, and sound. `pw-play` played the helper's tick. `aplay` is installed. The file chooser is zenity, and it launched; kdialog is absent. The session locale is `en_US.UTF-8`, the theme is Yaru-dark, color-scheme is prefer-dark, animations are on, and the text scale is 1. The window keeps its own palette. Keyboard focus and scrolling are the window tests. Reduced motion is the settings test. This guest has no passwordless sudo, so the `amd64` package was not installed here. Plasma and Xfce are not installed. The Ubuntu 24.04 `amd64` half of this gate is the GitHub workflow. That job runs the core suite, requires `x86-64`, and fails if `ldd` reports a missing library, both for the release binaries and for the installed package. The offscreen launch must log that a tray is unavailable.
+
+**Decision: hold.** The daily actions that were run here completed, and the record checks from Phase 4 still stand. Plasma, Xfce, and a person's comparison of this window with the Mac are still open. The branch stays source plus a CI artifact. This is not a published release.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.
@@ -219,4 +223,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-Phase 5, when that work is asked for. Phase 4 is recorded above.
+Nothing further until a person has compared the window with the Mac and the same build has been run on Plasma and on Xfce. The decision above is to hold.
