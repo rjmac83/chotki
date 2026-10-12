@@ -26,6 +26,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y libsqlite3-dev cmake ninja-build g++ file \
+            python3-pil \
             qt6-base-dev qt6-declarative-dev \
             qml6-module-qtquick qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts qml6-module-qtquick-templates \

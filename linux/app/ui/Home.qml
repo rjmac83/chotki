@@ -30,12 +30,24 @@ Item {
         return entry.band
     }
     function roll(strip, event) {
-        const pixels = event.pixelDelta ? event.pixelDelta.y : 0
-        const angle = event.angleDelta ? event.angleDelta.y : 0
-        const delta = pixels !== 0 ? pixels : angle
+        const pixelsY = event.pixelDelta ? event.pixelDelta.y : 0
+        const angleY = event.angleDelta ? event.angleDelta.y : 0
+        const pixelsX = event.pixelDelta ? event.pixelDelta.x : 0
+        const angleX = event.angleDelta ? event.angleDelta.x : 0
+        let delta = pixelsX !== 0 ? pixelsX : angleX
+        if (!delta) delta = pixelsY !== 0 ? pixelsY : angleY
         if (!delta) return
         const limit = Math.max(0, strip.contentWidth - strip.width)
-        strip.contentX = Math.max(0, Math.min(limit, strip.contentX - delta))
+        const next = strip.contentX - delta
+        if (next < 0) {
+            if (strip.contentX <= 0) home.pageWeek(-1)
+            else strip.contentX = 0
+        } else if (next > limit) {
+            if (strip.contentX >= limit - 0.5) home.pageWeek(1)
+            else strip.contentX = limit
+        } else {
+            strip.contentX = next
+        }
         event.accepted = true
     }
     function hideMenu() {
@@ -75,8 +87,10 @@ Item {
     property string watchedDate: bridge.selectedDate || ""
     onWatchedDateChanged: home.hideMenu()
 
-    readonly property bool monthBeside: width >= 660
+    property bool monthOpen: false
     property bool toldMonth: false
+    property bool weekPaging: false
+    property bool followCenter: false
     property real panProgress: bridge.review || bridge.reducedMotion === true ? 1 : 0
     property string panKey: (bridge.selectedDate || "") + "|" + (bridge.artworkName || "")
     property string notedKey: ""
@@ -84,9 +98,51 @@ Item {
 
     function tellMonth() {
         if (!bridge.connected || !bridge.setMonthShown) return
-        bridge.setMonthShown(home.monthBeside)
+        bridge.setMonthShown(home.monthOpen)
     }
-    onMonthBesideChanged: home.tellMonth()
+    onMonthOpenChanged: home.tellMonth()
+
+    function selectedWeekIndex() {
+        const days = bridge.week || []
+        for (let index = 0; index < days.length; index++) {
+            if (days[index].selected) return index
+        }
+        const want = bridge.selectedDate || ""
+        for (let index = 0; index < days.length; index++) {
+            if (days[index].date === want) return index
+        }
+        return -1
+    }
+    function centerWeek() {
+        const days = bridge.week || []
+        if (!days.length || weekStrip.width < 2) return
+        let index = Math.floor(days.length / 2)
+        if (!home.followCenter) {
+            const selected = home.selectedWeekIndex()
+            if (selected >= 0) index = selected
+        }
+        const limit = Math.max(0, weekStrip.contentWidth - weekStrip.width)
+        const target = index * 48 - (weekStrip.width - 42) / 2
+        weekStrip.contentX = Math.max(0, Math.min(limit, target))
+        home.followCenter = false
+        home.weekPaging = false
+    }
+    function pageWeek(direction) {
+        if (home.weekPaging || !bridge.shiftWeek) return
+        home.weekPaging = true
+        home.followCenter = true
+        bridge.shiftWeek(direction)
+    }
+    function nudgeWeek(direction) {
+        const step = 48 * 7
+        const limit = Math.max(0, weekStrip.contentWidth - weekStrip.width)
+        const next = weekStrip.contentX + direction * step
+        if (next >= 0 && next <= limit) {
+            weekStrip.contentX = next
+            return
+        }
+        home.pageWeek(direction)
+    }
 
     function settlePan() {
         // Review and a screenshot stay on the resting crop and do not write
@@ -162,171 +218,45 @@ Item {
     readonly property color fastFill: "#3b3454"
     readonly property color ground: "#15161c"
 
+    readonly property string weekKey: {
+        const days = bridge.week || []
+        if (!days.length) return ""
+        return days[0].date + ":" + days.length + ":" + (bridge.selectedDate || "")
+    }
+    onWeekKeyChanged: home.centerWeek()
+
     Column {
         id: mast
         width: parent.width
         spacing: 0
 
         Item { width: 1; height: 18 }
-            Item {
-                width: parent.width
-                height: 20
-                Label {
-                    anchors.centerIn: parent
-                    text: home.monthLabel()
-                    color: home.parchment
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                }
-                Label {
-                    objectName: "today-link"
-                    visible: home.todayLinkText.length > 0
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: home.todayLinkText.indexOf("Today") === 0 ? parent.width - width - 8 : 8
-                    text: home.todayLinkText
-                    color: home.gold
-                    font.pixelSize: 12
-                    MouseArea { anchors.fill: parent; onClicked: bridge.selectDate(bridge.today) }
-                }
-            }
-            Item { width: 1; height: 8 }
-            Row {
-                x: Math.max(0, (parent.width - implicitWidth) / 2)
-                spacing: 6
-                Label {
-                    objectName: "week-previous"
-                    text: "‹"
-                    width: 18
-                    height: 53
-                    verticalAlignment: Text.AlignVCenter
-                    color: home.gold
-                    font.pixelSize: 18
-                    MouseArea { anchors.fill: parent; onClicked: bridge.shiftWeek(-1) }
-                }
-                Item {
-                    id: weekStrip
-                    objectName: "week-scroll"
-                    // Chips are placed by hand. A horizontal ListView on Qt 6.4
-                    // reported a chip's place and then gave the click to no day.
-                    width: 330
-                    height: 53
-                    clip: true
-                    property real contentX: 0
-                    property string picked: ""
-                    readonly property real contentWidth: {
-                        const count = bridge.week ? bridge.week.length : 0
-                        return count > 0 ? count * 48 - 6 : 0
-                    }
-                    Repeater {
-                        model: bridge.week
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-                            objectName: "day-" + modelData.date
-                            x: index * 48 - weekStrip.contentX
-                            y: 0
-                            width: 42
-                            height: 53
-                            radius: 13
-                            color: modelData.fast ? home.fastFill : modelData.selected ? home.ground : Qt.rgba(0.082, 0.086, 0.110, 0.65)
-                            border.width: modelData.selected ? 1 : 0
-                            border.color: home.gold
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 2
-                                Label {
-                                    text: ["", "S", "M", "T", "W", "T", "F", "S"][modelData.weekday]
-                                    color: home.muted
-                                    font.pixelSize: 10
-                                    horizontalAlignment: Text.AlignHCenter
-                                    width: 30
-                                }
-                                Label {
-                                    text: modelData.day
-                                    color: modelData.feast ? home.gold : (modelData.weekday === 1 ? home.ochre : home.parchment)
-                                    font.pixelSize: 16
-                                    font.weight: Font.Medium
-                                    horizontalAlignment: Text.AlignHCenter
-                                    width: 30
-                                }
-                                Rectangle {
-                                    objectName: "settled-" + modelData.date
-                                    visible: modelData.settled
-                                    width: 3; height: 3; radius: 2
-                                    color: home.gold
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                            }
-                        }
-                    }
-                    // Outside the scrolling page, so the page cannot take the press.
-                    // The chip under the pointer is chosen from its place in the week.
-                    MouseArea {
-                        anchors.fill: parent
-                        z: 2
-                        onPressed: function(mouse) {
-                            const index = Math.floor((mouse.x + weekStrip.contentX) / 48)
-                            const days = bridge.week || []
-                            const day = index >= 0 && index < days.length ? days[index] : null
-                            const date = day && day.date ? day.date : ""
-                            weekStrip.picked = Math.round(mouse.x) + "=" + date
-                            if (date.length) bridge.selectDate(date)
-                        }
-                    }
-                    WheelHandler {
-                        // A laptop touchpad synthesizes the wheel. The default
-                        // is a mouse only, so an ordinary Linux wheel would miss.
-                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                        blocking: true
-                        onWheel: function(event) { home.roll(weekStrip, event) }
-                    }
-                }
-                Label {
-                    objectName: "week-next"
-                    text: "›"
-                    width: 18
-                    height: 53
-                    verticalAlignment: Text.AlignVCenter
-                    color: home.gold
-                    font.pixelSize: 18
-                    MouseArea { anchors.fill: parent; onClicked: bridge.shiftWeek(1) }
-                }
-            }
-    }
-    Item {
-        id: body
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: mast.bottom
-        anchors.bottom: parent.bottom
-
         Item {
-            id: monthPane
-            objectName: "month-pane"
-            width: home.monthBeside ? Math.min(340, Math.max(280, body.width * 0.36)) : 0
-            height: parent.height
-            visible: width > 0
-
+            width: parent.width
+            height: 22
             Label {
-                id: monthTitle
-                objectName: "month-title"
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 8
-                width: parent.width - 72
-                text: bridge.monthTitle || ""
+                anchors.centerIn: parent
+                text: home.monthOpen ? (bridge.monthTitle || "") : home.monthLabel()
                 color: home.parchment
                 font.pixelSize: 13
-                font.weight: Font.Medium
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
+                font.weight: Font.DemiBold
+            }
+            Label {
+                objectName: "today-link"
+                visible: home.todayLinkText.length > 0
+                anchors.verticalCenter: parent.verticalCenter
+                x: home.todayLinkText.indexOf("Today") === 0 ? parent.width - width - 8 : 8
+                text: home.todayLinkText
+                color: home.gold
+                font.pixelSize: 12
+                MouseArea { anchors.fill: parent; onClicked: bridge.selectDate(bridge.today) }
             }
             Label {
                 objectName: "month-previous"
-                x: 0
-                y: 4
+                visible: home.monthOpen
+                x: Math.max(0, (parent.width - Math.min(600, parent.width - 8)) / 2)
                 width: 28
-                height: 28
+                height: 22
                 text: "‹"
                 color: home.gold
                 font.pixelSize: 16
@@ -336,10 +266,10 @@ Item {
             }
             Label {
                 objectName: "month-next"
-                anchors.right: parent.right
-                y: 4
+                visible: home.monthOpen
+                x: Math.min(parent.width - 28, (parent.width + Math.min(600, parent.width - 8)) / 2 - 28)
                 width: 28
-                height: 28
+                height: 22
                 text: "›"
                 color: home.gold
                 font.pixelSize: 16
@@ -347,15 +277,156 @@ Item {
                 verticalAlignment: Text.AlignVCenter
                 MouseArea { anchors.fill: parent; onClicked: bridge.shiftMonth(1) }
             }
+        }
+        Item { width: 1; height: 8 }
+        Item {
+            width: parent.width
+            height: home.monthOpen ? 0 : 76
+            visible: !home.monthOpen
+            clip: true
             Row {
-                y: 36
-                width: parent.width
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 6
+                height: 76
+            Label {
+                objectName: "week-previous"
+                text: "‹"
+                width: 18
+                height: 54
+                verticalAlignment: Text.AlignVCenter
+                color: home.gold
+                font.pixelSize: 18
+                MouseArea { anchors.fill: parent; onClicked: home.nudgeWeek(-1) }
+            }
+            Item {
+                id: weekStrip
+                objectName: "week-scroll"
+                // Chips are placed by hand. A horizontal ListView on Qt 6.4
+                // reported a chip's place and then gave the click to no day.
+                width: Math.min(330, Math.max(48, mast.width - 46))
+                height: 76
+                clip: true
+                property real contentX: 0
+                property string picked: ""
+                readonly property real contentWidth: {
+                    const count = bridge.week ? bridge.week.length : 0
+                    return count > 0 ? count * 48 - 6 : 0
+                }
+                onWidthChanged: home.centerWeek()
+                Repeater {
+                    model: bridge.week
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        objectName: "day-" + modelData.date
+                        x: index * 48 - weekStrip.contentX
+                        y: 0
+                        width: 42
+                        height: 54
+                        radius: 14
+                        color: modelData.fast ? home.fastFill : modelData.selected ? home.ground : Qt.rgba(0.082, 0.086, 0.110, 0.65)
+                        border.width: modelData.selected ? 1 : 0
+                        border.color: home.gold
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 2
+                            Label {
+                                text: ["", "S", "M", "T", "W", "T", "F", "S"][modelData.weekday]
+                                color: home.muted
+                                font.pixelSize: 10
+                                horizontalAlignment: Text.AlignHCenter
+                                width: 30
+                            }
+                            Label {
+                                text: modelData.day
+                                color: modelData.feast ? home.gold : (modelData.weekday === 1 ? home.ochre : home.parchment)
+                                font.pixelSize: 16
+                                font.weight: Font.Medium
+                                horizontalAlignment: Text.AlignHCenter
+                                width: 30
+                            }
+                            Rectangle {
+                                objectName: "settled-" + modelData.date
+                                visible: modelData.settled
+                                width: 3; height: 3; radius: 2
+                                color: home.gold
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+                        }
+                    }
+                }
+                Item {
+                    objectName: (!home.monthOpen && home.selectedWeekIndex() >= 0) ? "calendar-expand" : ""
+                    visible: home.selectedWeekIndex() >= 0
+                    x: home.selectedWeekIndex() * 48 - weekStrip.contentX - 3
+                    y: 56
+                    width: 48
+                    height: 18
+                    z: 3
+                    Label {
+                        anchors.centerIn: parent
+                        text: "›"
+                        rotation: 90
+                        color: "#a88a33"
+                        font.pixelSize: 14
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: home.monthOpen = true
+                    }
+                }
+                // The chip under the pointer is chosen from its place in the week.
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.bottomMargin: 18
+                    z: 2
+                    onPressed: function(mouse) {
+                        const index = Math.floor((mouse.x + weekStrip.contentX) / 48)
+                        const days = bridge.week || []
+                        const day = index >= 0 && index < days.length ? days[index] : null
+                        const date = day && day.date ? day.date : ""
+                        weekStrip.picked = Math.round(mouse.x) + "=" + date
+                        if (date.length) bridge.selectDate(date)
+                    }
+                }
+                WheelHandler {
+                    // A laptop touchpad synthesizes the wheel. The default
+                    // is a mouse only, so an ordinary Linux wheel would miss.
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    blocking: true
+                    onWheel: function(event) { home.roll(weekStrip, event) }
+                }
+            }
+            Label {
+                objectName: "week-next"
+                text: "›"
+                width: 18
+                height: 54
+                verticalAlignment: Text.AlignVCenter
+                color: home.gold
+                font.pixelSize: 18
+                MouseArea { anchors.fill: parent; onClicked: home.nudgeWeek(1) }
+            }
+            }
+        }
+        Item {
+            id: monthPane
+            objectName: "month-pane"
+            visible: home.monthOpen
+            width: parent.width
+            height: visible ? 250 : 0
+
+            Row {
+                y: 4
+                width: Math.min(600, parent.width - 24)
+                x: (parent.width - width) / 2
                 spacing: 0
                 Repeater {
                     model: ["S", "M", "T", "W", "T", "F", "S"]
                     delegate: Label {
                         required property string modelData
-                        width: monthPane.width / 7
+                        width: Math.min(600, monthPane.width - 24) / 7
                         text: modelData
                         color: home.muted
                         font.pixelSize: 10
@@ -366,8 +437,9 @@ Item {
             Item {
                 id: monthGrid
                 objectName: "month-grid"
-                y: 54
-                width: parent.width
+                y: 22
+                width: Math.min(600, parent.width - 24)
+                x: (parent.width - width) / 2
                 height: 186
                 readonly property real cellW: width / 7
                 readonly property real cellH: 31
@@ -423,13 +495,39 @@ Item {
                     }
                 }
             }
+            Item {
+                objectName: home.monthOpen ? "calendar-expand" : ""
+                x: (parent.width - width) / 2
+                y: 214
+                width: 48
+                height: 18
+                Label {
+                    anchors.centerIn: parent
+                    text: "›"
+                    rotation: -90
+                    color: "#a88a33"
+                    font.pixelSize: 14
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: home.monthOpen = false
+                }
+            }
         }
+        Item { width: 1; height: home.monthOpen ? 0 : 4 }
+    }
+    Item {
+        id: body
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: mast.bottom
+        anchors.bottom: parent.bottom
 
     Flickable {
         id: page
         objectName: "home-scroll"
-        x: monthPane.width > 0 ? monthPane.width + 12 : 0
-        width: Math.max(0, parent.width - x)
+        x: 0
+        width: parent.width
         height: parent.height
         contentWidth: width
         contentHeight: content.implicitHeight

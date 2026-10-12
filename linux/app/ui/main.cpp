@@ -31,6 +31,8 @@ int main(int argc, char *argv[]) {
     QApplication application(argc, argv);
     application.setApplicationName("Chotki");
     application.setDesktopFileName("org.chotki.Chotki");
+    const QIcon chotkiIcon(QStringLiteral(":/chotki/icon-1024.png"));
+    if (!chotkiIcon.isNull()) application.setWindowIcon(chotkiIcon);
 
     const QStringList arguments = application.arguments();
     const bool screenshot = arguments.size() == 5 && arguments.at(3) == "--screenshot";
@@ -94,6 +96,10 @@ int main(int argc, char *argv[]) {
     if (engine.rootObjects().isEmpty()) return 4;
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     if (!window) return 5;
+    if (!chotkiIcon.isNull()) {
+        window->setIcon(chotkiIcon);
+        window->setProperty("iconSource", QStringLiteral("qrc:/chotki/icon-1024.png"));
+    }
     if (screenshot) {
         const QString path = arguments.at(4);
         auto *timer = new QTimer(window);
@@ -170,7 +176,7 @@ int main(int argc, char *argv[]) {
         painter.setBrush(QColor(QStringLiteral("#c9a227")));
         painter.drawEllipse(2, 2, 18, 18);
         painter.end();
-        tray->setIcon(QIcon(mark));
+        tray->setIcon(chotkiIcon.isNull() ? QIcon(mark) : chotkiIcon);
         tray->setToolTip(QStringLiteral("Chotki"));
         auto *menu = new QMenu();
         menu->addAction(QStringLiteral("Open"), window, [window] {

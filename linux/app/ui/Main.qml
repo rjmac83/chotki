@@ -25,6 +25,7 @@ ApplicationWindow {
     readonly property color violet: "#9a8fc4"
     readonly property color ochre: "#a63a38"
     property bool sidebarCollapsed: false
+    property string iconSource: ""
     property string section: "Home"
     property bool welcomeAsked: false
     property string glossaryReturn: "Home"
@@ -251,12 +252,16 @@ ApplicationWindow {
                     width: parent.width
                     height: 32
                     Accessible.name: window.sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"
-                    Label {
-                        x: 9
+                    Image {
+                        x: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "▣"
-                        color: window.muted
-                        font.pixelSize: 16
+                        width: 22
+                        height: 22
+                        source: window.iconSource
+                        sourceSize.width: 64
+                        sourceSize.height: 64
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
                     }
                     MouseArea {
                         anchors.fill: parent

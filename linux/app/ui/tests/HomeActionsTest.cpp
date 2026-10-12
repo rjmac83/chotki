@@ -221,6 +221,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT((week = findItem(window->contentItem(), "week-scroll"))
                                  && (otherDay = findItem(window->contentItem(), "day-" + other))
                                  && otherDay->width() > 20 && otherDay->height() > 20, 3000);
+        revealX(week, otherDay);
         const QPointF localCenter(otherDay->width() / 2.0, otherDay->height() / 2.0);
         const QPointF inWeek = otherDay->mapToItem(week, localCenter);
         const QPoint center = otherDay->mapToScene(localCenter).toPoint();
@@ -304,7 +305,7 @@ private slots:
         QCOMPARE(window->property("section").toString(), QString("Home"));
     }
 
-    void monthBesideTheDayAndTheSayingRests() {
+    void monthOpensUnderTheDayAndTheSayingRests() {
         const QString program = qEnvironmentVariable("CHOTKI_LINUX_BRIDGE");
         if (program.isEmpty()) QSKIP("CHOTKI_LINUX_BRIDGE is not set");
         const auto session = openSession(program);
@@ -332,12 +333,37 @@ private slots:
         QQuickItem *grid = nullptr;
         QQuickItem *week = nullptr;
         QQuickItem *art = nullptr;
-        QTRY_VERIFY_WITH_TIMEOUT((grid = findItem(window->contentItem(), "month-grid"))
-                                 && grid->isVisible() && grid->height() > 100
-                                 && (week = findItem(window->contentItem(), "week-scroll"))
+        QQuickItem *expand = nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT((week = findItem(window->contentItem(), "week-scroll"))
                                  && week->isVisible()
+                                 && week->property("contentWidth").toDouble() > week->width() + 40.0
+                                 && (expand = findItem(window->contentItem(), "calendar-expand"))
+                                 && expand->isVisible()
+                                 && expand->mapToItem(week, QPointF(expand->width() / 2.0, expand->height() / 2.0)).x() > 1.0
+                                 && expand->mapToItem(week, QPointF(expand->width() / 2.0, expand->height() / 2.0)).x()
+                                        < week->width() - 1.0
+                                 && (grid = findItem(window->contentItem(), "month-grid"))
+                                 && !grid->isVisible()
                                  && (art = findItem(window->contentItem(), "saying-art"))
                                  && art->property("progress").toDouble() == 1.0, 3000);
+        const double weekX = week->property("contentX").toDouble();
+        const QString selectedBeforeScroll = bridge->selectedDate();
+        const QPoint weekCenter = week->mapToScene(QPointF(week->width() / 2.0, 30)).toPoint();
+        QWheelEvent weekWheel(QPointF(weekCenter), window->mapToGlobal(weekCenter), QPoint(), QPoint(0, -120),
+                              Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(window, &weekWheel);
+        QTRY_VERIFY_WITH_TIMEOUT(week->property("contentX").toDouble() > weekX + 40.0, 1000);
+        QCOMPARE(bridge->selectedDate(), selectedBeforeScroll);
+        week->setProperty("contentX", weekX);
+        QQuickItem *weekNext = findItem(window->contentItem(), "week-next");
+        QVERIFY(weekNext && weekNext->isVisible());
+        click(window, weekNext);
+        QTRY_VERIFY_WITH_TIMEOUT(week->property("contentX").toDouble() > weekX + 200.0, 1000);
+        QCOMPARE(bridge->selectedDate(), selectedBeforeScroll);
+        week->setProperty("contentX", weekX);
+        click(window, expand);
+        QTRY_VERIFY_WITH_TIMEOUT(grid->isVisible() && grid->height() > 100
+                                 && !week->isVisible(), 3000);
         QVERIFY(findItem(window->contentItem(), "edge-fade"));
 
         QString titled;

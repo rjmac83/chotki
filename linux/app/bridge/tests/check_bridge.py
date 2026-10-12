@@ -97,7 +97,9 @@ def main():
         assert ask("hello")["mode"] == "review"
         first = ask("snapshot")
         assert first["ok"] and first["psalmOneVerses"] == 6
-        assert first["entries"] and len(first["week"]) == 7
+        assert first["entries"] and len(first["week"]) == 57
+        assert first["week"][28]["date"] == first["selectedDate"]
+        assert first["week"][28]["selected"]
         assert first["selectedDate"] == first["today"]
         assert "todayLink" not in first
         assert len(first["month"]) == 42

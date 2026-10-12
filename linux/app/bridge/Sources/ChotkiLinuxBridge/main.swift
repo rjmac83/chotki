@@ -156,13 +156,16 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
             glossarySlug: entry.rule.glossarySlug
         )
     }
-    let weekStart = weekCenter.adding(days: -3)
-    let weekEnd = weekCenter.adding(days: 3)
+    // Enough days that the week strip can scroll, the way the Mac week does.
+    // The selected day stays marked. Chevrons and the wheel move through it.
+    let weekSpan = 28
+    let weekStart = weekCenter.adding(days: -weekSpan)
+    let weekEnd = weekCenter.adding(days: weekSpan)
     let weekOccurrences = try store.occurrences(ruleID: nil, from: weekStart, through: weekEnd)
     let weekPractice = Practice(rules: rules, activations: activations,
                                 occurrences: weekOccurrences, settings: settings,
                                 liturgical: liturgical)
-    let week: [WeekDayPayload] = (-3...3).map { offset in
+    let week: [WeekDayPayload] = (-weekSpan...weekSpan).map { offset in
         let date = weekCenter.adding(days: offset)
         let day = liturgical.cachedDay(for: date)
         let feast = settings.observances.feasts.isVisible && day?.isGreatFeast == true

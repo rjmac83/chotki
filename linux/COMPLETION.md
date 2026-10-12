@@ -207,6 +207,8 @@ An alpha `.deb` already installs and opens. This phase makes that package the th
 
 On 2026-10-11 the welcome page in that package could not be finished: the church names were an unscrolling list, so Continue sat below the window, the shell repeated the title Welcome, and the edge fade was drawn over the page. The list is now a dropdown, the shell title is hidden while that page is up, and the fade is not drawn there. The words still come from Welcome. The hold is unchanged.
 
+On 2026-10-12 the home calendar was still the wide layout, with the month beside the day. It now keeps a scrolling week at the top, and the chevron under the selected day opens the month downward. The window icon is the Chotki mark. The hold is unchanged.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.

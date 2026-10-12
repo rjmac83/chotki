@@ -46,8 +46,46 @@ for resource in calendar/manifest.json calendar/kjv.json psalter.json saint-live
         exit 1
     fi
 done
-install -m644 "$repo_root/ios/Chotki/Assets.xcassets/AppIcon.appiconset/icon-1024.png" \
+icon_src="$repo_root/ios/Chotki/Assets.xcassets/AppIcon.appiconset/icon-1024.png"
+install -m644 "$icon_src" \
     "$stage/usr/share/icons/hicolor/1024x1024/apps/org.chotki.Chotki.png"
+install -d "$stage/usr/share/pixmaps"
+install -m644 "$icon_src" \
+    "$stage/usr/share/pixmaps/org.chotki.Chotki.png"
+# The hicolor index names 48 through 512. A lone 1024 is not in that index,
+# so the dock and the overview never see it.
+resize_icon() {
+    local size="$1" dest="$2"
+    if command -v convert >/dev/null 2>&1; then
+        convert "$icon_src" -resize "${size}x${size}" "$dest"
+    elif command -v magick >/dev/null 2>&1; then
+        magick "$icon_src" -resize "${size}x${size}" "$dest"
+    elif python3 -c "import PIL" >/dev/null 2>&1; then
+        python3 - "$icon_src" "$size" "$dest" <<'PY'
+import sys
+from PIL import Image
+size = int(sys.argv[2])
+image = Image.open(sys.argv[1]).convert("RGBA")
+image.resize((size, size), Image.Resampling.LANCZOS).save(sys.argv[3])
+PY
+    else
+        echo "Need ImageMagick or Python PIL to scale the Chotki icon" >&2
+        return 1
+    fi
+}
+for size in 48 64 128 256 512; do
+    install -d "$stage/usr/share/icons/hicolor/${size}x${size}/apps"
+    resize_icon "$size" \
+        "$stage/usr/share/icons/hicolor/${size}x${size}/apps/org.chotki.Chotki.png"
+done
+cat > "$stage/DEBIAN/postinst" <<'POST'
+#!/bin/sh
+set -e
+if [ -x /usr/bin/gtk-update-icon-cache ]; then
+    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+fi
+POST
+chmod 755 "$stage/DEBIAN/postinst"
 install -m644 "$repo_root/LICENSE" "$stage/usr/share/doc/chotki/LICENSE"
 install -m644 "$repo_root/linux/app/ui/fonts/LICENSE.txt" \
     "$stage/usr/share/doc/chotki/XCharter-LICENSE.txt"
