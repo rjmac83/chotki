@@ -110,10 +110,23 @@ private slots:
             const QString name = QString("reading-section-%1").arg(band);
             QTRY_VERIFY_WITH_TIMEOUT((header = findItem(session->window->contentItem(), name)), 3000);
             click(session->window, scroll, header);
+            if (band == 0) {
+                QTest::qWait(70);
+                QQuickItem *opening = findItem(session->window->contentItem(), QStringLiteral("reading-shell-0"));
+                QVERIFY(opening);
+                const double full = opening->property("goal").toDouble();
+                QVERIFY(full > 40.0);
+                QVERIFY(opening->height() > 2.0);
+                QVERIFY(opening->height() < full - 8.0);
+            }
             QQuickItem *body = nullptr;
             const QString bodyName = QString("reading-body-%1").arg(band);
             QTRY_VERIFY_WITH_TIMEOUT((body = findItem(session->window->contentItem(), bodyName))
                                      && body->isVisible(), 8000);
+            QQuickItem *shell = findItem(session->window->contentItem(),
+                                         QString("reading-shell-%1").arg(band));
+            QVERIFY(shell);
+            QTRY_VERIFY_WITH_TIMEOUT(shell->height() > shell->property("goal").toDouble() - 2.0, 2000);
         }
         QVERIFY(!kept(session->bridge.get(), "The day's Gospel"));
         QVERIFY(!kept(session->bridge.get(), "The day's Epistle"));

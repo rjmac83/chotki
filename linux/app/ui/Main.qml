@@ -261,16 +261,26 @@ ApplicationWindow {
                     width: parent.width
                     height: 32
                     Accessible.name: window.sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"
-                    Image {
+                    // The Mac control is the sidebar.left mark, not the app icon.
+                    Item {
                         x: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 22
-                        height: 22
-                        source: window.iconSource
-                        sourceSize.width: 64
-                        sourceSize.height: 64
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
+                        width: 16
+                        height: 13
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 2
+                            color: "transparent"
+                            border.color: window.muted
+                            border.width: 1.25
+                        }
+                        Rectangle {
+                            x: 4.5
+                            y: 1.25
+                            width: 1.25
+                            height: parent.height - 2.5
+                            color: window.muted
+                        }
                     }
                     MouseArea {
                         anchors.fill: parent

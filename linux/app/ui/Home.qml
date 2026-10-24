@@ -770,21 +770,28 @@ Item {
                                 }
                             }
                         }
-                footer: Rectangle {
-                    objectName: "home-add-placard"
-                    width: 120
+                // ListView spacing is only between delegates. The footer would
+                // otherwise sit against the last card.
+                footer: Item {
+                    width: 12 + 120
                     height: 232
-                    radius: 21
-                    color: "transparent"
-                    border.color: "#7d671f"
-                    border.width: 1
-                    Label {
-                        anchors.centerIn: parent
-                        text: "+  Add"
-                        color: home.gold
-                        font.pixelSize: 14
+                    Rectangle {
+                        objectName: "home-add-placard"
+                        x: 12
+                        width: 120
+                        height: 232
+                        radius: 21
+                        color: "transparent"
+                        border.color: "#7d671f"
+                        border.width: 1
+                        Label {
+                            anchors.centerIn: parent
+                            text: "+  Add"
+                            color: home.gold
+                            font.pixelSize: 14
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: home.libraryRequested() }
                     }
-                    MouseArea { anchors.fill: parent; onClicked: home.libraryRequested() }
                 }
                 WheelHandler {
                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad

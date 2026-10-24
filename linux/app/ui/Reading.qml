@@ -221,19 +221,80 @@ Item {
                         }
 
                         Item {
+                            id: shell
+                            objectName: "reading-shell-" + section.band
                             width: parent.width
                             clip: true
-                            height: readingBody.visible ? readingBody.implicitHeight : 0
-                            Behavior on height {
-                                enabled: window.motionOn()
-                                NumberAnimation { duration: 250; easing.type: Easing.InOutQuad }
+                            height: 0
+                            // A binding from this height to the column's implicitHeight
+                            // faults mapToScene while the section is closed. The height
+                            // is driven from here instead, and the column stays hidden
+                            // once the close has finished.
+                            property bool open: section.modelData.open === true
+                            property real goal: 0
+                            property int measureTries: 0
+
+                            function follow() {
+                                if (open) {
+                                    readingBody.visible = true
+                                    var target = readingBody.implicitHeight
+                                    if (target < 1 && measureTries < 4) {
+                                        measureTries += 1
+                                        Qt.callLater(follow)
+                                        return
+                                    }
+                                    measureTries = 0
+                                    slide(target)
+                                    return
+                                }
+                                measureTries = 0
+                                slide(0)
                             }
+
+                            function slide(target) {
+                                goal = target
+                                if (!window.motionOn() || Math.abs(height - target) < 1) {
+                                    grow.stop()
+                                    height = target
+                                    if (target < 1)
+                                        readingBody.visible = false
+                                    return
+                                }
+                                grow.stop()
+                                grow.from = height
+                                grow.to = target
+                                grow.start()
+                            }
+
+                            NumberAnimation {
+                                id: grow
+                                target: shell
+                                property: "height"
+                                duration: 250
+                                easing.type: Easing.InOutQuad
+                                onFinished: {
+                                    if (!grow.running && shell.goal < 1
+                                            && Math.abs(shell.height - shell.goal) < 1)
+                                        readingBody.visible = false
+                                }
+                            }
+
+                            onOpenChanged: follow()
+                            Component.onCompleted: follow()
+
                             Column {
                             id: readingBody
                             objectName: "reading-body-" + section.band
                             width: parent.width
                             spacing: 16
-                            visible: section.modelData.open
+                            visible: false
+                            onImplicitHeightChanged: {
+                                if (!shell.open || implicitHeight < 1)
+                                    return
+                                if (Math.abs(implicitHeight - shell.goal) < 2)
+                                    return
+                                shell.slide(implicitHeight)
+                            }
 
                             Repeater {
                                 model: section.modelData.passages || []

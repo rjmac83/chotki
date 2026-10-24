@@ -215,6 +215,8 @@ Later the same day that workflow failed while building the settings menus: Qt 6.
 
 The same install then grabbed an empty page. The software renderer drops the scroll mask, so the screenshot lost everything inside the scrolling view and fell short of the size check. On that renderer the dissolve is painted over the viewport. A GPU scene graph still masks it. The arm64 package on the guest desktop is unchanged. The hold is unchanged. That workflow run is not recorded here.
 
+On 2026-10-24 the sidebar collapse control was still the app icon. It is now the drawer mark. The Add card was flush with the last commitment because a list footer does not take the row's gap; it now keeps that gap. A reading section eases open and closed over a quarter of a second, and the text stays put until the close has finished. The arm64 package is the same 0.1.0~alpha2, copied to the guest desktop, and it was not installed. The hold is unchanged. That workflow run is not recorded here.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.
@@ -233,4 +235,4 @@ Linux on mobile is the same `aarch64` application with a layout that fits a phon
 
 ## Next slice
 
-The comparison corrections are in the source. Nothing further toward a published alpha until this build has been run on Plasma and on Xfce, and the person has looked at this package. The decision above is to hold.
+The drawer mark, the Add card's gap, and the reading section motion are in the source. Nothing further toward a published alpha until this build has been run on Plasma and on Xfce, and the person has looked at this package. The decision above is to hold.
