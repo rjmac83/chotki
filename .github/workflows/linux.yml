@@ -133,6 +133,7 @@ jobs:
           fi
       - name: Render installed review screen headlessly
         run: |
+          trap 'status=$?; if [ "$status" -ne 0 ]; then echo "installed review failed: $status"; cat /tmp/chotki-installed.log 2>/dev/null || true; fi' EXIT
           test -d /usr/lib/chotki/ChotkiCore_ChotkiCore.bundle
           test -f /usr/share/chotki/Resources/sayings/order.txt
           test -f /usr/share/chotki/Resources/progress.jpg

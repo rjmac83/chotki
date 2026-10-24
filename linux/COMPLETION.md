@@ -213,6 +213,8 @@ On 2026-10-24 a person compared this window with the Mac. The hard bands were th
 
 Later the same day that workflow failed while building the settings menus: Qt 6.4 would not accept the menu delegate inside the settings component, so the church note never appeared. The delegate is now a component. The arm64 package on the guest desktop is the earlier build, which already shows those menus on the guest's Qt. The hold is unchanged. That workflow run is not recorded here.
 
+The same install then grabbed an empty page. The software renderer drops the scroll mask, so the screenshot lost everything inside the scrolling view and fell short of the size check. On that renderer the dissolve is painted over the viewport. A GPU scene graph still masks it. The arm64 package on the guest desktop is unchanged. The hold is unchanged. That workflow run is not recorded here.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.
