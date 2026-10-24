@@ -21,6 +21,7 @@
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QtGlobal>
 
 #include <functional>
 #include <memory>
@@ -45,6 +46,20 @@ int main(int argc, char *argv[]) {
     const bool review = arguments.at(1) == "--review";
     const QString serverName = QString("org.chotki.linux.%1.%2")
         .arg(getuid()).arg(review ? "review" : "normal");
+    // Qt's short name is an abstract socket. Two Flatpak instances do not
+    // share that socket, and sharing the host network namespace would collide
+    // with a deb install of the same name. A path under the app runtime
+    // directory is visible to both launches of this Flatpak and to nobody else.
+    const bool flatpak = !qEnvironmentVariableIsEmpty("FLATPAK_ID");
+    QString serverAddress = serverName;
+    if (flatpak) {
+        const QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if (runtime.isEmpty() || !QDir().mkpath(runtime)) {
+            qCritical("Cannot find a runtime directory for the single-instance socket");
+            return 3;
+        }
+        serverAddress = runtime + QLatin1Char('/') + serverName;
+    }
 
     const auto activateExisting = [&](QLocalSocket &socket) {
         if (screenshot) {
@@ -57,7 +72,7 @@ int main(int argc, char *argv[]) {
     };
 
     QLocalSocket existing;
-    existing.connectToServer(serverName);
+    existing.connectToServer(serverAddress);
     if (existing.waitForConnected(250)) return activateExisting(existing);
 
     // Only the process holding this lock may remove a stale socket. A second
@@ -66,14 +81,15 @@ int main(int argc, char *argv[]) {
         + QDir::separator() + serverName + ".lock";
     QLockFile lock(lockPath);
     if (!lock.tryLock(0)) {
-        existing.connectToServer(serverName);
+        existing.connectToServer(serverAddress);
         if (existing.waitForConnected(1000)) return activateExisting(existing);
         qCritical("Another Chotki instance is starting but cannot be reached");
         return 3;
     }
-    QLocalServer::removeServer(serverName);
+    QLocalServer::removeServer(serverAddress);
     QLocalServer server;
-    if (!server.listen(serverName)) {
+    server.setSocketOptions(QLocalServer::UserAccessOption);
+    if (!server.listen(serverAddress)) {
         qCritical("Cannot establish Chotki's single-instance socket");
         return 3;
     }

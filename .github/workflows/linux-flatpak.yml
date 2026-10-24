@@ -1,0 +1,107 @@
+name: Linux Flatpak
+
+on:
+  push:
+    branches: [linux]
+    paths:
+      - 'linux/**'
+      - 'core/**'
+      - 'ios/Chotki/Assets.xcassets/AppIcon.appiconset/**'
+      - 'macos/Sources/Chotki/Resources/**'
+      - '.github/workflows/linux-flatpak.yml'
+  pull_request:
+    paths:
+      - 'linux/**'
+      - 'core/**'
+      - 'ios/Chotki/Assets.xcassets/AppIcon.appiconset/**'
+      - 'macos/Sources/Chotki/Resources/**'
+      - '.github/workflows/linux-flatpak.yml'
+
+jobs:
+  bundle:
+    name: Flatpak — ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            file_marker: x86-64
+            swift_platform: ubuntu2404
+            swift_tarball: swift-6.4.0-RELEASE-ubuntu24.04.tar.gz
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            file_marker: aarch64
+            swift_platform: ubuntu2404-aarch64
+            swift_tarball: swift-6.4.0-RELEASE-ubuntu24.04-aarch64.tar.gz
+    steps:
+      - uses: actions/checkout@v5
+      - name: Confirm Ubuntu 24.04
+        run: grep -q '^VERSION_ID="24.04"$' /etc/os-release
+      - name: Install Swift 6.4 and Flatpak
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            binutils file curl ca-certificates \
+            git gnupg2 libc6-dev libcurl4-openssl-dev libedit2 \
+            libgcc-13-dev libpython3-dev libsqlite3-0 libstdc++-13-dev \
+            libxml2-dev libncurses-dev libz3-dev pkg-config tzdata unzip zlib1g-dev \
+            python3-pil flatpak flatpak-builder
+          tarball="${{ matrix.swift_tarball }}"
+          url="https://download.swift.org/swift-6.4.0-release/${{ matrix.swift_platform }}/swift-6.4.0-RELEASE/${tarball}"
+          curl -fsSL "$url" -o "/tmp/${tarball}"
+          sudo mkdir -p /opt/swift
+          sudo tar -xzf "/tmp/${tarball}" -C /opt/swift --strip-components=1
+          echo /opt/swift/usr/bin >> "$GITHUB_PATH"
+      - name: Build the Swift helper
+        run: |
+          set -euo pipefail
+          swift --version
+          swift build --package-path linux/app/bridge -c release -j 2
+          helper=$(swift build --show-bin-path --package-path linux/app/bridge -c release)/ChotkiLinuxBridge
+          file "$helper" | tee /tmp/chotki-helper-file.txt
+          grep -q '${{ matrix.file_marker }}' /tmp/chotki-helper-file.txt
+      - name: Install the KDE 6.10 runtime
+        run: |
+          set -euo pipefail
+          flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak --user install -y flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+      - name: Build the bundle
+        run: |
+          set -euo pipefail
+          helper=$(swift build --show-bin-path --package-path linux/app/bridge -c release)/ChotkiLinuxBridge
+          mkdir -p linux/dist
+          linux/tools/build-flatpak.sh "$helper" \
+            "linux/dist/chotki-1.0-beta-${{ matrix.arch }}.flatpak"
+          test -f "linux/dist/chotki-1.0-beta-${{ matrix.arch }}.flatpak"
+      - name: Install the bundle and grab the review window
+        run: |
+          set -euo pipefail
+          flatpak --user install -y --noninteractive \
+            "linux/dist/chotki-1.0-beta-${{ matrix.arch }}.flatpak"
+          rm -rf /tmp/chotki-flatpak-review
+          mkdir -p /tmp/chotki-flatpak-review
+          printf '{"v":1,"id":1,"op":"snapshot"}\n' | \
+            timeout 30 flatpak run --user \
+              --env=CHOTKI_LINUX_REVIEW_DIR=/tmp/chotki-flatpak-review \
+              --filesystem=/tmp \
+              --command=chotki-helper org.chotki.Chotki --review \
+              > /tmp/chotki-flatpak-bridge.jsonl
+          grep -q '"psalmOneVerses":6' /tmp/chotki-flatpak-bridge.jsonl
+          timeout 60 flatpak run --user \
+            --filesystem=/tmp \
+            --env=QT_QPA_PLATFORM=offscreen \
+            --env=QT_QUICK_BACKEND=software \
+            --env=CHOTKI_LINUX_REVIEW_DIR=/tmp/chotki-flatpak-review \
+            --command=chotki org.chotki.Chotki \
+            --review --screenshot /tmp/chotki-flatpak.png
+          file /tmp/chotki-flatpak.png | grep -q 'PNG image data, 1100 x 860'
+          test "$(stat -c%s /tmp/chotki-flatpak.png)" -gt 100000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chotki-1.0-beta-${{ matrix.arch }}.flatpak
+          path: linux/dist/chotki-1.0-beta-${{ matrix.arch }}.flatpak
+          if-no-files-found: error

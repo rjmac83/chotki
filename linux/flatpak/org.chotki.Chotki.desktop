@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Chotki
+Comment=An Orthodox rule of prayer
+Exec=chotki
+Icon=org.chotki.Chotki
+Terminal=false
+Categories=Education;Religion;
+StartupWMClass=Chotki

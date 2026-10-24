@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.chotki.Chotki</id>
+  <name>Chotki</name>
+  <summary>An Orthodox rule of prayer</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer id="org.chotki">
+    <name>Chotki</name>
+  </developer>
+  <launchable type="desktop-id">org.chotki.Chotki.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <description>
+    <p>
+      Chotki keeps an Orthodox rule of prayer. The day shows what was asked,
+      and keeping it is thanksgiving.
+    </p>
+  </description>
+  <releases>
+    <release version="1.0-beta" date="2026-10-24"/>
+  </releases>
+</component>

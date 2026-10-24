@@ -221,6 +221,8 @@ On 2026-10-24 the opening mark drew each knot from the corner of the bead, at ha
 
 On 2026-10-24 a paused rule stays on Home, greyed and marked Paused, including the days after the pause. A day stood down is greyed and marked Stood Down. Pause This Rule and Stand Down for This Day are ticked, and choosing a ticked one undoes it. There is no separate Resume item on the card. Pausing an unrecorded day stands that day down. Taking the rule back the same day lifts that stand-down. Progress has a quiet Reset record. It asks "Are you sure?" and "This will completely erase your record and cannot be undone.", then starts rules still in force from today, keeps a paused rule paused, and deletes the automatic chotki-*.json backups. The version string is 1.0 beta and the package version is 1.0~beta. It does not follow the macOS build number. This is not published. That workflow run is not recorded here.
 
+On 2026-10-24 the public package is a Flatpak bundle for each architecture, `org.chotki.Chotki` on `org.kde.Platform` 6.10. Launch at login writes the host autostart entry as `flatpak run org.chotki.Chotki`. A backup uses the desktop portal. The rope plays through a player in the bundle. The single-instance socket is a file in the app's runtime directory. The record lives in the Flatpak data directory. The two bundles are GitHub workflow artifacts. This is not published. That workflow run is not recorded here.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.

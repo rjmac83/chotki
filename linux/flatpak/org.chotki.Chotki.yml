@@ -1,0 +1,60 @@
+app-id: org.chotki.Chotki
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+command: chotki
+separate-locales: false
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --socket=pulseaudio
+  - --share=network
+  - --talk-name=org.freedesktop.Notifications
+  - --filesystem=xdg-config/autostart:create
+  - --env=CHOTKI_ARTWORK_ROOT=/app/share/chotki/Resources
+modules:
+  - name: chotki-play
+    buildsystem: simple
+    build-commands:
+      - gcc -O2 -o chotki-play chotki-play.c $(pkg-config --cflags --libs libpulse-simple)
+      - install -Dm755 chotki-play /app/bin/chotki-play
+    sources:
+      - type: file
+        path: chotki-play.c
+
+  - name: chotki-linux
+    buildsystem: simple
+    build-commands:
+      - cmake -S linux/app/ui -B cmake-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build cmake-build -j ${FLATPAK_BUILDER_N_JOBS}
+      - install -Dm755 cmake-build/chotki-linux /app/lib/chotki/chotki-linux
+    sources:
+      - type: dir
+        path: ../..
+
+  - name: chotki-payload
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 chotki /app/bin/chotki
+      - install -Dm755 chotki-helper /app/bin/chotki-helper
+      - install -Dm755 ChotkiLinuxBridge /app/lib/chotki/ChotkiLinuxBridge
+      - mkdir -p /app/lib/chotki/swift /app/lib/chotki/compat
+      - cp -a swift/. /app/lib/chotki/swift/
+      - if [ -n "$(ls -A compat 2>/dev/null)" ]; then cp -a compat/. /app/lib/chotki/compat/; fi
+      - cp -a ChotkiCore_ChotkiCore.bundle /app/lib/chotki/
+      - install -Dm644 org.chotki.Chotki.desktop /app/share/applications/org.chotki.Chotki.desktop
+      - install -Dm644 org.chotki.Chotki.metainfo.xml /app/share/metainfo/org.chotki.Chotki.metainfo.xml
+      - install -Dm644 LICENSE /app/share/doc/chotki/LICENSE
+      - install -Dm644 Swift-LICENSE.txt /app/share/doc/chotki/Swift-LICENSE.txt
+      - install -Dm644 XCharter-LICENSE.txt /app/share/doc/chotki/XCharter-LICENSE.txt
+      - install -Dm644 LGPL-3.txt /app/share/doc/chotki/LGPL-3.txt
+      - install -Dm644 Qt-LGPL-NOTICE.txt /app/share/doc/chotki/Qt-LGPL-NOTICE.txt
+      - install -Dm644 RUNTIME.txt /app/share/doc/chotki/RUNTIME.txt
+      - mkdir -p /app/share/icons /app/share/chotki
+      - cp -a icons/. /app/share/icons/
+      - cp -a Resources /app/share/chotki/Resources
+    sources:
+      - type: dir
+        path: payload

@@ -840,6 +840,28 @@ def main():
         assert not Path("relative-config/autostart/org.chotki.Chotki.desktop").exists()
         close(relative)
 
+    with tempfile.TemporaryDirectory(prefix="chotki-flatpak-autostart-") as directory, \
+            tempfile.TemporaryDirectory(prefix="chotki-flatpak-decoy-config-") as decoy:
+        environment = os.environ.copy()
+        environment["XDG_DATA_HOME"] = directory
+        environment["XDG_CONFIG_HOME"] = decoy
+        environment["FLATPAK_ID"] = "org.chotki.Chotki"
+        environment["CHOTKI_AUTOSTART_DIR"] = directory + "/host-autostart"
+        flatpak_session, ask = conversation(helper, "--normal", environment)
+        turned = ask(
+            "saveSettings", launchAtLogin=True, executable="/app/lib/chotki/chotki-linux",
+        )
+        assert turned["settings"]["launchAtLogin"] is True
+        desktop = Path(directory) / "host-autostart" / "org.chotki.Chotki.desktop"
+        text = desktop.read_text()
+        assert "Exec=flatpak run org.chotki.Chotki\n" in text
+        assert "Exec=/app/lib/chotki/chotki-linux" not in text
+        assert not (Path(decoy) / "autostart" / "org.chotki.Chotki.desktop").exists()
+        off = ask("saveSettings", launchAtLogin=False)
+        assert off["settings"]["launchAtLogin"] is False
+        assert not desktop.exists()
+        close(flatpak_session)
+
     with tempfile.TemporaryDirectory(prefix="chotki-review-reminders-") as review_dir, \
             tempfile.TemporaryDirectory(prefix="chotki-review-autostart-") as config_dir:
         environment = os.environ.copy()

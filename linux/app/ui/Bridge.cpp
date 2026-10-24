@@ -12,6 +12,7 @@
 #include <QDate>
 #include <QDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QUrl>
@@ -388,6 +389,9 @@ QString Bridge::programPath() const {
 }
 
 bool Bridge::backupChooser() const {
+    // The wrapper selects the portal theme. A widget dialog would only see
+    // the sandbox, so the chooser is the portal and not zenity.
+    if (!qEnvironmentVariableIsEmpty("FLATPAK_ID")) return true;
     return !QStandardPaths::findExecutable(QStringLiteral("zenity")).isEmpty()
         || !QStandardPaths::findExecutable(QStringLiteral("kdialog")).isEmpty();
 }
@@ -396,6 +400,14 @@ QString Bridge::chooseBackup(bool saving) {
     // A review window, including the screenshot, must not open a dialog.
     // Cancelling returns empty so the caller does not fall through to a typed path.
     if (m_review) return {};
+    if (!qEnvironmentVariableIsEmpty("FLATPAK_ID")) {
+        const QString filter = QStringLiteral("JSON (*.json)");
+        const QString suggested = QDir::homePath() + QStringLiteral("/chotki-backup.json");
+        return saving ? QFileDialog::getSaveFileName(
+                            nullptr, QStringLiteral("Export a backup"), suggested, filter)
+                      : QFileDialog::getOpenFileName(
+                            nullptr, QStringLiteral("Restore a backup"), QDir::homePath(), filter);
+    }
     const QString zenity = QStandardPaths::findExecutable(QStringLiteral("zenity"));
     if (!zenity.isEmpty()) {
         QProcess process;
@@ -425,6 +437,10 @@ void Bridge::layoutRope(double diameter) {
 
 QString Bridge::soundPlayer() const {
     if (!m_soundPlayer.isEmpty()) return m_soundPlayer;
+    if (!qEnvironmentVariableIsEmpty("FLATPAK_ID")) {
+        const QString bundled = QStringLiteral("/app/bin/chotki-play");
+        if (QFileInfo::exists(bundled)) return bundled;
+    }
     for (const char *name : {"pw-play", "paplay", "aplay"}) {
         const QString path = QStandardPaths::findExecutable(QString::fromLatin1(name));
         if (!path.isEmpty()) return path;

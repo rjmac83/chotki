@@ -9,6 +9,10 @@ linux/spike/ui/build/
 linux/app/ui/build/
 linux/app/ui/release/
 linux/dist/
+linux/flatpak/payload/
+linux/flatpak/work/
+linux/flatpak/repo/
+linux/flatpak/.flatpak-builder/
 *.xcodeproj
 *.xcworkspace
 DerivedData/

@@ -196,10 +196,30 @@ private func absoluteBackupPath(_ raw: String?) throws -> URL {
     return URL(fileURLWithPath: raw)
 }
 
+func isFlatpak() -> Bool {
+    let id = ProcessInfo.processInfo.environment["FLATPAK_ID"] ?? ""
+    return !id.isEmpty
+}
+
 /// `$XDG_CONFIG_HOME/autostart` when that variable is absolute. A relative
 /// value is refused, the same way a relative review directory is. Otherwise
 /// the file is `~/.config/autostart/org.chotki.Chotki.desktop`.
+///
+/// Inside a Flatpak, `XDG_CONFIG_HOME` is the private sandbox directory.
+/// The host autostart folder is `~/.config/autostart`, which the permission
+/// `xdg-config/autostart` mounts there. `CHOTKI_AUTOSTART_DIR`, when it is
+/// an absolute path, replaces that folder so a check does not write the
+/// person's real autostart file.
 func autostartFileURL() -> URL? {
+    if isFlatpak() {
+        let override = ProcessInfo.processInfo.environment["CHOTKI_AUTOSTART_DIR"] ?? ""
+        if !override.isEmpty && !override.hasPrefix("/") { return nil }
+        let directory = override.hasPrefix("/")
+            ? URL(fileURLWithPath: override, isDirectory: true)
+            : FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".config/autostart", isDirectory: true)
+        return directory.appendingPathComponent("org.chotki.Chotki.desktop")
+    }
     let proposed = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? ""
     if !proposed.isEmpty && !proposed.hasPrefix("/") { return nil }
     let base = proposed.hasPrefix("/")
@@ -220,8 +240,8 @@ func desktopExecLine(_ executable: String) -> String? {
 }
 
 /// Review mode does not touch the person's autostart directory. Turning the
-/// switch off removes the file. Turning it on writes it only when the window
-/// has sent an absolute path.
+/// switch off removes the file. Turning it on writes it when the window has
+/// sent an absolute path, or, inside a Flatpak, as `flatpak run`.
 func syncLaunchAtLogin(enabled: Bool, executable: String?, review: Bool) throws {
     if review { return }
     guard let url = autostartFileURL() else { return }
@@ -231,7 +251,15 @@ func syncLaunchAtLogin(enabled: Bool, executable: String?, review: Bool) throws 
         }
         return
     }
-    guard let executable, let exec = desktopExecLine(executable) else { return }
+    // The in-sandbox binary is not a path the host session can run.
+    // The desktop entry has to start the Flatpak by its id.
+    let exec: String
+    if isFlatpak() {
+        exec = "flatpak run org.chotki.Chotki"
+    } else {
+        guard let executable, let line = desktopExecLine(executable) else { return }
+        exec = line
+    }
     try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(), withIntermediateDirectories: true
     )
