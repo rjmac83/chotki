@@ -454,7 +454,7 @@ do {
                 try performPsalter(request, store: store, on: selectedDate,
                                    weekCenter: weekCenter, session: &psalter)
 
-            case "library", "prepareTemplate", "openEditor", "acknowledgeCaution",
+            case "library", "prepareTemplate", "openEditor", "dismissEditor", "acknowledgeCaution",
                  "saveRule", "pauseRule", "resumeRule", "removeRule", "takeUp",
                  "setAside", "setSpiritualFather":
                 try performLibrary(request, store: store, on: selectedDate,

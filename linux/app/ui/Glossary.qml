@@ -91,28 +91,18 @@ Item {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: glossary.line }
 
-        Flickable {
-            id: scroller
-            objectName: "glossary-scroll"
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Flickable {
+            id: scroller
+            objectName: "glossary-scroll"
+            anchors.fill: parent
             contentWidth: width
             contentHeight: page.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            interactive: false
-
-            WheelHandler {
-                onWheel: function(event) {
-                    const pixels = event.pixelDelta.y
-                    const angle = event.angleDelta.y
-                    const delta = pixels !== 0 ? pixels : angle
-                    if (!delta) return
-                    const limit = Math.max(0, scroller.contentHeight - scroller.height)
-                    scroller.contentY = Math.max(0, Math.min(limit, scroller.contentY - delta))
-                    event.accepted = true
-                }
-            }
+            interactive: true
 
             Column {
                 id: page
@@ -269,6 +259,7 @@ Item {
                                     }
                                     MouseArea {
                                         anchors.fill: parent
+                                        preventStealing: true
                                         onClicked: glossary.openTerm(modelData.slug)
                                     }
                                 }
@@ -282,6 +273,7 @@ Item {
                 width: scroller.width
                 height: scroller.height
                 z: 8
+            }
             }
         }
     }

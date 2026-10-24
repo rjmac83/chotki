@@ -387,6 +387,9 @@ func performLibrary(_ request: BridgeRequest, store: SQLiteStore, on date: Calen
         }
         session.present(template.makeRule(source: "the library"), original: nil)
 
+    case "dismissEditor":
+        session.closeEditor()
+
     case "openEditor":
         if let raw = request.ruleID {
             let rule = try requireRule(raw, in: try store.rules(includeArchived: true))

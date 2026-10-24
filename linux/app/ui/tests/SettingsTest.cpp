@@ -161,8 +161,13 @@ private slots:
                                      QStringLiteral("Orthodox Church in America")), 8000);
         QQuickItem *savedChurch = nullptr;
         QTRY_VERIFY_WITH_TIMEOUT((savedChurch = shown(window, QStringLiteral("settings-scroll"),
-                                                      QStringLiteral("settings-church-Romanian Orthodox Church")))
-                                 && savedChurch->property("selected").toBool(), 3000);
+                                                      QStringLiteral("settings-church")))
+                                 && savedChurch->property("chosen").toString()
+                                        == QStringLiteral("Romanian Orthodox Church"), 3000);
+        QQuickItem *settingsScroll = findItem(window->contentItem(), QStringLiteral("settings-scroll"));
+        QVERIFY(settingsScroll);
+        QVERIFY(settingsScroll->property("contentHeight").toDouble()
+                > settingsScroll->height() + 40.0);
 
         QQuickItem *motion = nullptr;
         QTRY_VERIFY_WITH_TIMEOUT((motion = shown(window, QStringLiteral("settings-scroll"),

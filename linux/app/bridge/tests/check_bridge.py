@@ -512,6 +512,9 @@ def main():
         assert {item["title"] for item in both["entries"]} == {"Morning prayers", "Evening prayers"}
         evening_id = next(item["id"] for item in both["entries"] if item["title"] == "Evening prayers")
 
+        opened = ask("openEditor", ruleID=morning_id)
+        assert opened["editor"]["open"] is True
+        assert ask("dismissEditor")["editor"]["open"] is False
         ask("openEditor", ruleID=morning_id)
         edited = ask("saveRule", hasTime=True, hour=8, minute=0, scope="wholeSeries")
         morning = next(item for item in edited["entries"] if item["id"] == morning_id)

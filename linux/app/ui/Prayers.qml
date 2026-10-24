@@ -210,29 +210,18 @@ Item {
             }
         }
 
-        Flickable {
-            id: prayerScroll
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: !bridge.prayerRopeAlone && !prayers.psalterOpen
+            Flickable {
+            id: prayerScroll
+            anchors.fill: parent
             contentHeight: words.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            // A parent Flickable can take the press, so a term link never fires.
-            // The wheel still moves a long rule.
-            interactive: false
-
-            WheelHandler {
-                onWheel: function(event) {
-                    const pixels = event.pixelDelta.y
-                    const angle = event.angleDelta.y
-                    const delta = pixels !== 0 ? pixels : angle
-                    if (!delta) return
-                    const limit = Math.max(0, prayerScroll.contentHeight - prayerScroll.height)
-                    prayerScroll.contentY = Math.max(0, Math.min(limit, prayerScroll.contentY - delta))
-                    event.accepted = true
-                }
-            }
+            // The wheel moves a long rule. A click still reaches a term link.
+            interactive: true
 
             Column {
                 id: words
@@ -308,6 +297,7 @@ Item {
                 width: prayerScroll.width
                 height: prayerScroll.height
                 z: 8
+            }
             }
         }
 

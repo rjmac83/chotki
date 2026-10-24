@@ -336,6 +336,8 @@ void Bridge::openEditor(const QString &ruleID) {
     else send("openEditor", QJsonObject{{"ruleID", ruleID}});
 }
 
+void Bridge::dismissEditor() { send(QStringLiteral("dismissEditor")); }
+
 void Bridge::acknowledgeCaution(bool hide) {
     send("acknowledgeCaution", QJsonObject{{"hideCaution", hide}});
 }

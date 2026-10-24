@@ -14,6 +14,8 @@ Item {
     readonly property color gold: "#c9a227"
     readonly property color line: "#23252c"
     readonly property var page: bridge.settings || ({})
+    property var churchRows: []
+    property string heardChurches: ""
 
     FontLoader { id: charter; source: "fonts/XCharter-Roman.otf" }
 
@@ -33,40 +35,34 @@ Item {
 
     Connections {
         target: bridge
-        function onChanged() { settings.syncFields() }
+        function onChanged() {
+            settings.syncFields()
+            settings.syncMenus()
+        }
     }
 
     Component.onCompleted: {
         bridge.showSettings()
         syncFields()
+        syncMenus()
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        Flickable {
-            id: scroller
-            objectName: "settings-scroll"
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Flickable {
+            id: scroller
+            objectName: "settings-scroll"
+            anchors.fill: parent
             contentWidth: width
             contentHeight: column.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            interactive: false
-
-            WheelHandler {
-                onWheel: function(event) {
-                    const pixels = event.pixelDelta.y
-                    const angle = event.angleDelta.y
-                    const delta = pixels !== 0 ? pixels : angle
-                    if (!delta) return
-                    const limit = Math.max(0, scroller.contentHeight - scroller.height)
-                    scroller.contentY = Math.max(0, Math.min(limit, scroller.contentY - delta))
-                    event.accepted = true
-                }
-            }
+            interactive: true
 
             Column {
                 id: column
@@ -125,60 +121,24 @@ Item {
                 }
 
                 Label { text: "Your Church"; color: settings.muted; font.pixelSize: 13; topPadding: 14; bottomPadding: 4 }
-                Item {
-                    id: churches
-                    width: parent.width
-                    height: churchRepeater.count * 28
-                    Repeater {
-                        id: churchRepeater
-                        model: settings.churchChoices()
-                        delegate: Item {
-                            required property int index
-                            required property var modelData
-                            objectName: index === 0 ? "settings-church-none" : ("settings-church-" + modelData)
-                            y: index * 28
-                            width: churches.width
-                            height: 28
-                            readonly property bool selected: index === 0
-                                    ? (settings.page.church || "") === ""
-                                    : settings.page.church === modelData
-                            Label {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 8
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 16
-                                text: modelData
-                                color: parent.selected ? settings.gold : settings.parchment
-                                font.pixelSize: 14
-                                elide: Text.ElideRight
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                preventStealing: true
-                                onClicked: bridge.saveSettings({ church: index === 0 ? "" : modelData })
-                            }
-                        }
+                MenuField {
+                    id: churchBox
+                    objectName: "settings-church"
+                    readonly property string chosen: settings.churchRows.length
+                            ? String(settings.churchRows[Math.max(0, currentIndex)] || "") : ""
+                    onActivated: function(index) {
+                        const rows = settings.churchRows
+                        bridge.saveSettings({ church: index <= 0 || index >= rows.length ? "" : rows[index] })
                     }
                 }
-                Repeater {
-                    model: settings.page.reckonings || []
-                    delegate: Item {
-                        required property var modelData
-                        objectName: "settings-reckoning-" + modelData.value
-                        width: parent.width
-                        height: 28
-                        Label {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.label
-                            color: settings.page.reckoning === modelData.value ? settings.gold : settings.parchment
-                            font.pixelSize: 14
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: bridge.saveSettings({ reckoning: modelData.value })
-                        }
+                MenuField {
+                    id: reckoningBox
+                    objectName: "settings-reckoning"
+                    textRole: "label"
+                    onActivated: function(index) {
+                        const rows = settings.page.reckonings || []
+                        if (index < 0 || index >= rows.length) return
+                        bridge.saveSettings({ reckoning: rows[index].value })
                     }
                 }
                 Label {
@@ -296,24 +256,14 @@ Item {
                     wrapMode: Text.WordWrap
                 }
                 Label { text: "Clock"; color: settings.parchment; font.pixelSize: 14; topPadding: 8 }
-                Repeater {
-                    model: settings.page.clocks || []
-                    delegate: Item {
-                        required property var modelData
-                        objectName: "settings-clock-" + modelData.value
-                        width: parent.width
-                        height: 28
-                        Label {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.label
-                            color: settings.page.clock === modelData.value ? settings.gold : settings.parchment
-                            font.pixelSize: 14
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: bridge.saveSettings({ clock: modelData.value })
-                        }
+                MenuField {
+                    id: clockBox
+                    objectName: "settings-clock"
+                    textRole: "label"
+                    onActivated: function(index) {
+                        const rows = settings.page.clocks || []
+                        if (index < 0 || index >= rows.length) return
+                        bridge.saveSettings({ clock: rows[index].value })
                     }
                 }
 
@@ -354,27 +304,16 @@ Item {
                     font.pixelSize: 14
                     topPadding: 6
                 }
-                Repeater {
-                    model: settings.page.leads || []
-                    delegate: Item {
-                        required property var modelData
-                        objectName: "settings-lead-" + modelData.value
-                        width: parent.width
-                        height: 28
-                        enabled: settings.page.notifications === true
-                        opacity: enabled ? 1 : 0.45
-                        Label {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.label
-                            color: String(settings.page.lead) === String(modelData.value) ? settings.gold : settings.parchment
-                            font.pixelSize: 14
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: parent.enabled
-                            onClicked: bridge.saveSettings({ lead: Number(modelData.value) })
-                        }
+                MenuField {
+                    id: leadBox
+                    objectName: "settings-lead"
+                    textRole: "label"
+                    enabled: settings.page.notifications === true
+                    opacity: enabled ? 1 : 0.45
+                    onActivated: function(index) {
+                        const rows = settings.page.leads || []
+                        if (index < 0 || index >= rows.length) return
+                        bridge.saveSettings({ lead: Number(rows[index].value) })
                     }
                 }
 
@@ -647,6 +586,7 @@ Item {
                 height: scroller.height
                 z: 8
             }
+            }
         }
     }
 
@@ -657,5 +597,102 @@ Item {
         if (none.length) rows.push(none)
         for (let index = 0; index < rest.length; index++) rows.push(rest[index])
         return rows
+    }
+
+    function syncChoice(box, rows, value) {
+        const key = rows.map(function(row) { return String(row.value) + "=" + String(row.label) }).join("\n")
+        if (box.modelKey !== key) {
+            box.modelKey = key
+            box.model = rows
+        }
+        if (!rows.length) return
+        let index = 0
+        const wanted = String(value)
+        for (let i = 0; i < rows.length; i++) if (String(rows[i].value) === wanted) index = i
+        if (box.currentIndex !== index) box.currentIndex = index
+    }
+
+    function syncMenus() {
+        if (!churchBox || !reckoningBox || !clockBox || !leadBox) return
+        const churches = churchChoices()
+        const churchKey = churches.join("\n")
+        if (churchKey !== heardChurches) {
+            heardChurches = churchKey
+            churchRows = churches
+            churchBox.model = churches
+        }
+        const name = page.church || ""
+        let churchIndex = 0
+        for (let i = 1; i < churches.length; i++) if (churches[i] === name) churchIndex = i
+        if (churches.length && churchBox.currentIndex !== churchIndex) churchBox.currentIndex = churchIndex
+        syncChoice(reckoningBox, page.reckonings || [], page.reckoning)
+        syncChoice(clockBox, page.clocks || [], page.clock)
+        syncChoice(leadBox, page.leads || [], page.lead)
+    }
+
+    component MenuField: ComboBox {
+        id: box
+        property string modelKey: ""
+        width: parent ? parent.width : 280
+        height: 40
+        font.pixelSize: 15
+
+        contentItem: Label {
+            leftPadding: 12
+            rightPadding: 28
+            text: box.displayText
+            color: settings.parchment
+            font.pixelSize: 15
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        background: Rectangle {
+            color: "transparent"
+            border.color: settings.line
+            radius: 6
+        }
+        indicator: Label {
+            x: box.width - width - 12
+            y: (box.height - implicitHeight) / 2
+            text: "\u25BE"
+            color: settings.gold
+            font.pixelSize: 12
+        }
+        delegate: ItemDelegate {
+            id: choice
+            required property int index
+            required property var modelData
+            width: box.width
+            height: 36
+            highlighted: box.highlightedIndex === index
+            contentItem: Label {
+                text: box.textRole ? choice.modelData[box.textRole] : String(choice.modelData)
+                color: choice.highlighted ? settings.gold : settings.parchment
+                font.pixelSize: 14
+                leftPadding: 12
+                rightPadding: 12
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+            background: Rectangle {
+                color: choice.highlighted ? "#2a261c" : "#1c1e26"
+            }
+        }
+        popup: Popup {
+            y: box.height + 4
+            width: box.width
+            padding: 1
+            implicitHeight: Math.min(choiceList.contentHeight + 2, 6 * 36 + 2)
+            contentItem: ListView {
+                id: choiceList
+                clip: true
+                implicitHeight: contentHeight
+                model: box.popup.visible ? box.delegateModel : null
+                currentIndex: box.highlightedIndex
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            }
+            background: Rectangle { color: "#1c1e26"; border.color: settings.line; radius: 6 }
+        }
     }
 }

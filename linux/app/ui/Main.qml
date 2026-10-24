@@ -40,6 +40,10 @@ ApplicationWindow {
     property bool autostartSynced: false
     onWatchedDateChanged: window.dismissThanks()
 
+    function motionOn() {
+        return bridge.reducedMotion !== true
+    }
+
     function notePrayer() {
         if (bridge.prayerEvent > heardEvent && bridge.prayerSound.length > 0) {
             heardEvent = bridge.prayerEvent
@@ -240,7 +244,12 @@ ApplicationWindow {
         Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: window.sidebarCollapsed ? 58 : 188
+            clip: true
             color: Qt.rgba(0.082, 0.086, 0.110, 0.24)
+            Behavior on Layout.preferredWidth {
+                enabled: window.motionOn()
+                NumberAnimation { duration: 280; easing.type: Easing.InOutQuad }
+            }
 
             Column {
                 anchors.fill: parent
@@ -277,15 +286,19 @@ ApplicationWindow {
                         spacing: 3
 
                         Label {
-                            visible: !window.sidebarCollapsed
+                            visible: opacity > 0.04
                             text: modelData.heading
                             color: window.muted
-                            opacity: 0.92
+                            opacity: window.sidebarCollapsed ? 0 : 0.92
                             font.pixelSize: 11
                             font.weight: Font.Medium
                             leftPadding: 10
                             topPadding: 12
                             bottomPadding: 4
+                            Behavior on opacity {
+                                enabled: window.motionOn()
+                                NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+                            }
                         }
                         Item {
                             visible: window.sidebarCollapsed
@@ -315,11 +328,16 @@ ApplicationWindow {
                                         tint: window.section === modelData ? window.parchment : window.muted
                                     }
                                     Label {
-                                        visible: !window.sidebarCollapsed
+                                        visible: opacity > 0.04
+                                        opacity: window.sidebarCollapsed ? 0 : 1
                                         text: modelData
                                         color: window.section === modelData ? window.parchment : window.muted
                                         font.pixelSize: 13
                                         font.weight: window.section === modelData ? Font.Medium : Font.Normal
+                                        Behavior on opacity {
+                                            enabled: window.motionOn()
+                                            NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+                                        }
                                     }
                                 }
                                 MouseArea {

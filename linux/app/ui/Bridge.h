@@ -255,6 +255,7 @@ public:
     Q_INVOKABLE void showLibrary(const QString &query);
     Q_INVOKABLE void prepareTemplate(const QString &templateID);
     Q_INVOKABLE void openEditor(const QString &ruleID);
+    Q_INVOKABLE void dismissEditor();
     Q_INVOKABLE void acknowledgeCaution(bool hide);
     Q_INVOKABLE void saveRule(const QVariantMap &fields);
     Q_INVOKABLE void pauseRule(const QString &ruleID);

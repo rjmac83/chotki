@@ -15,8 +15,8 @@ qt_add_qml_module(chotki-linux
     URI ChotkiLinux
     VERSION 1.0
     RESOURCE_PREFIX "/qt/qml"
-    QML_FILES Main.qml Home.qml Prayers.qml Reading.qml Psalter.qml Library.qml Editor.qml Progress.qml Glossary.qml Settings.qml Onboarding.qml OpeningMark.qml Icon.qml EdgeFade.qml
-    RESOURCES fonts/XCharter-Roman.otf fonts/XCharter-Bold.otf
+    QML_FILES Main.qml Home.qml Prayers.qml Reading.qml Psalter.qml Library.qml Editor.qml Progress.qml Glossary.qml Settings.qml Onboarding.qml OpeningMark.qml Icon.qml EdgeFade.qml Chevron.qml
+    RESOURCES fonts/XCharter-Roman.otf fonts/XCharter-Bold.otf shaders/edge.frag.qsb
 )
 set(CHOTKI_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../../../ios/Chotki/Assets.xcassets/AppIcon.appiconset/icon-1024.png")
 qt_add_resources(chotki-linux "chotki_icon"

@@ -280,10 +280,15 @@ Item {
         }
         Item { width: 1; height: 8 }
         Item {
+            id: weekFrame
             width: parent.width
             height: home.monthOpen ? 0 : 76
-            visible: !home.monthOpen
+            visible: height > 0.5
             clip: true
+            Behavior on height {
+                enabled: window.motionOn()
+                NumberAnimation { duration: 350; easing.type: Easing.InOutQuad }
+            }
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 6
@@ -364,12 +369,9 @@ Item {
                     width: 48
                     height: 18
                     z: 3
-                    Label {
+                    Chevron {
                         anchors.centerIn: parent
-                        text: "›"
-                        rotation: 90
-                        color: "#a88a33"
-                        font.pixelSize: 14
+                        ink: "#a88a33"
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -413,9 +415,14 @@ Item {
         Item {
             id: monthPane
             objectName: "month-pane"
-            visible: home.monthOpen
+            visible: home.monthOpen || height > 1
             width: parent.width
-            height: visible ? 250 : 0
+            height: home.monthOpen ? 250 : 0
+            clip: true
+            Behavior on height {
+                enabled: window.motionOn()
+                NumberAnimation { duration: 350; easing.type: Easing.InOutQuad }
+            }
 
             Row {
                 y: 4
@@ -501,12 +508,14 @@ Item {
                 y: 214
                 width: 48
                 height: 18
-                Label {
+                Chevron {
                     anchors.centerIn: parent
-                    text: "›"
-                    rotation: -90
-                    color: "#a88a33"
-                    font.pixelSize: 14
+                    rotation: 180
+                    ink: "#a88a33"
+                    Behavior on rotation {
+                        enabled: window.motionOn()
+                        NumberAnimation { duration: 350; easing.type: Easing.InOutQuad }
+                    }
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -606,6 +615,14 @@ Item {
                             height: 232
                             radius: 22
                             color: "#e8dfcd"
+                            Behavior on width {
+                                enabled: window.motionOn()
+                                NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on height {
+                                enabled: window.motionOn()
+                                NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -823,7 +840,6 @@ Item {
             width: page.width
             height: page.height
             z: 4
-            ground: home.ground
         }
     }
     }

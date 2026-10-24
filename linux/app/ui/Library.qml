@@ -21,7 +21,7 @@ Item {
         id: libraryScroll
         objectName: "library-scroll"
         anchors.fill: parent
-        visible: bridge.editorPage.open !== true && !(bridge.editorPage.caution === true && !library.cautionClosed)
+        visible: !(bridge.editorPage.caution === true && !library.cautionClosed && bridge.editorPage.open !== true)
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -320,10 +320,80 @@ Item {
         }
     }
 
-    Loader {
+    Item {
         anchors.fill: parent
-        active: bridge.editorPage.open === true
-        visible: active
-        source: "Editor.qml"
+        z: 30
+        visible: bridge.editorPage.open === true || opacity > 0.01
+        opacity: bridge.editorPage.open === true ? 1 : 0
+        // A closing sheet keeps fading, but it must not take the next press.
+        enabled: bridge.editorPage.open === true
+        Behavior on opacity {
+            enabled: window.motionOn()
+            NumberAnimation { duration: 280; easing.type: Easing.InOutQuad }
+        }
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0.04, 0.045, 0.06, 0.62)
+            MouseArea { anchors.fill: parent }
+        }
+        Rectangle {
+            id: editorSheet
+            objectName: "editor-sheet"
+            width: Math.min(520, parent.width - 48)
+            height: Math.min(680, parent.height - 48)
+            anchors.centerIn: parent
+            radius: 14
+            color: "#17181e"
+            border.color: library.line
+            border.width: 1
+            clip: true
+            Column {
+                anchors.fill: parent
+                spacing: 0
+                Item {
+                    width: parent.width
+                    height: 44
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 1
+                        color: library.line
+                    }
+                    Item {
+                        objectName: "editor-back"
+                        x: 6
+                        width: 36
+                        height: 36
+                        anchors.verticalCenter: parent.verticalCenter
+                        Accessible.name: "Back"
+                        Label {
+                            anchors.centerIn: parent
+                            text: "\u2039"
+                            color: library.muted
+                            font.pixelSize: 22
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: bridge.dismissEditor()
+                        }
+                    }
+                    Label {
+                        anchors.centerIn: parent
+                        text: bridge.editorPage.isNew === true ? "New Rule" : "Edit Rule"
+                        color: library.parchment
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+                }
+                Loader {
+                    width: parent.width
+                    height: parent.height - 44
+                    active: bridge.editorPage.open === true
+                    visible: active
+                    source: "Editor.qml"
+                }
+            }
+        }
     }
 }

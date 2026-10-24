@@ -203,9 +203,14 @@ Item {
                                     wrapMode: Text.WordWrap
                                 }
                                 Label {
-                                    text: section.modelData.open ? "⌃" : "⌄"
+                                    text: "⌄"
                                     color: reading.gold
-                                    font.pixelSize: 14
+                                    font.pixelSize: 16
+                                    rotation: section.modelData.open ? 180 : 0
+                                    Behavior on rotation {
+                                        enabled: window.motionOn()
+                                        NumberAnimation { duration: 250; easing.type: Easing.InOutQuad }
+                                    }
                                 }
                             }
                             MouseArea {
@@ -215,7 +220,16 @@ Item {
                             }
                         }
 
-                        Column {
+                        Item {
+                            width: parent.width
+                            clip: true
+                            height: readingBody.visible ? readingBody.implicitHeight : 0
+                            Behavior on height {
+                                enabled: window.motionOn()
+                                NumberAnimation { duration: 250; easing.type: Easing.InOutQuad }
+                            }
+                            Column {
+                            id: readingBody
                             objectName: "reading-body-" + section.band
                             width: parent.width
                             spacing: 16
@@ -415,6 +429,7 @@ Item {
                                 width: parent.width
                                 height: 1
                                 visible: section.modelData.open
+                            }
                             }
                         }
                     }
