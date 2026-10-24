@@ -190,6 +190,23 @@ enum RenderMode {
             }
 
             shot("window-home") { }
+            // `CHOTKI_RENDER_PAUSE_AFTER=1` pauses a rule after the first draw, as
+            // choosing "Pause This Rule" does, and draws again: a card that is
+            // greyed only when the rule is paused before the window first draws
+            // is the bug this exists to catch.
+            if ProcessInfo.processInfo.environment["CHOTKI_RENDER_PAUSE_AFTER"] == "1" {
+                // Through the card's own menu closure, as a right click does,
+                // rather than by calling the model: the closure is what was
+                // captured when the card last drew.
+                func surfaces(in view: NSView) -> [RuleCardInteraction.Surface] {
+                    (view as? RuleCardInteraction.Surface).map { [$0] } ?? []
+                        + view.subviews.flatMap(surfaces(in:))
+                }
+                shot("window-home-paused-after") {
+                    surfaces(in: host).first { $0.title == "Evening prayers" }?
+                        .menuActions.first { $0.title == "Pause This Rule" }?.perform()
+                }
+            }
             if ProcessInfo.processInfo.environment["CHOTKI_RENDER_SETTLED_IMAGE"] == "1" {
                 // The render flag selects the same resting crop immediately,
                 // avoiding a minute-long render while leaving daily timing

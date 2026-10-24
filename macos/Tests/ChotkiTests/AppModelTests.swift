@@ -397,6 +397,101 @@ struct PausingTests {
         #expect(try !item("Pause This Rule").isOn)
         #expect(!model.isPausedOnPurpose(rule))
     }
+
+    @Test("pausing a rule before keeping it stands the day down, so it can never read as a miss")
+    func pausingFirstIsNotAMiss() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        model.standDown(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(entry.isStoodDown, "the day it was paused is set aside, not left to be missed")
+        #expect(model.isOnPause(rule, on: model.today))
+        #expect(model.outstandingEntries(on: model.today).isEmpty, "a paused rule asks nothing more today")
+    }
+
+    @Test("pausing a rule already kept today leaves the day kept")
+    func pausingAfterKeepingKeepsIt() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        model.setStatus(.completed, for: rule, on: model.today)
+
+        model.standDown(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(entry.isKept && !entry.isStoodDown)
+    }
+
+    @Test("pausing and unpausing on the same day leaves the day exactly as it was")
+    func samedayUndo() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        model.standDown(rule)
+        model.resume(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(!entry.isStoodDown && !entry.isKept, "back to due, nothing recorded")
+        #expect(!model.isOnPause(rule, on: model.today))
+    }
+}
+
+@Suite("Starting the record again")
+@MainActor
+struct ResetRecordTests {
+
+    @Test("a reset erases the history and counts from today, without turning the past into misses")
+    func resetStartsFromToday() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        // A fortnight of history, kept.
+        for back in 1...14 {
+            model.setStatus(.completed, for: rule, on: model.today.adding(days: -back))
+        }
+        #expect(!model.occurrences.isEmpty)
+
+        model.resetRecord()
+
+        #expect(model.occurrences.isEmpty, "everything that was kept is gone")
+        #expect(model.rules.map(\.id) == [rule.id], "the rule itself is untouched")
+        #expect(!model.isPaused(rule), "and still in force")
+        #expect(model.entries(on: model.today).map(\.rule.id) == [rule.id], "due today as before")
+        let report = model.report()
+        #expect(report.perRule.allSatisfy { $0.missed == 0 }, "no past day reads as missed")
+        #expect(report.overall == nil, "nothing has come due yet")
+    }
+
+    @Test("a paused rule is still paused after a reset, and still not counted")
+    func pausedRuleSurvives() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Evening prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        model.standDown(rule)
+
+        model.resetRecord()
+
+        #expect(model.isPausedOnPurpose(rule))
+        #expect(model.isOnPause(rule, on: model.today))
+        #expect(model.report().perRule.allSatisfy { $0.missed == 0 })
+    }
+
+    @Test("a reset under test cannot reach anyone's real backups")
+    func backupsAreLeftAloneUnderTest() throws {
+        let model = try makeModel()    // writesBackups is false
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let directory = try StoreLocation.backupsDirectory()
+        let before = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+
+        model.resetRecord()
+
+        let after = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        #expect(Set(before) == Set(after))
+    }
 }
 
 /// Shared content navigates by setting `model.screen`, which is the popover's

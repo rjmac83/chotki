@@ -85,7 +85,11 @@ public struct Practice: Sendable {
         let items = entries(on: date)
         guard !items.isEmpty else { return false }
         guard items.contains(where: \.isKept) else { return false }
-        return items.allSatisfy { $0.showsAsSatisfied || $0.isStoodDown }
+        // A rule paused today is set aside like one stood down: nothing more is
+        // asked of it, so it must not keep the day from being settled.
+        return items.allSatisfy {
+            $0.showsAsSatisfied || $0.isStoodDown || isOnPause($0.rule, on: date)
+        }
     }
 
     public func isPaused(_ rule: Rule) -> Bool {
@@ -108,12 +112,64 @@ public struct Practice: Sendable {
         return mine.compactMap(\.to).max()
     }
 
-    /// Whether a rule is on pause as seen from a day: paused now, and the day is
-    /// the one it was paused or later. The days before were kept as usual and
-    /// are shown as they were.
+    /// Whether a rule is on pause as seen from a day.
+    ///
+    /// Paused now: the day it was paused and every day after. Paused and since
+    /// taken back: the days in between, and the day it was paused if pausing
+    /// set that day aside. Days before the pause were kept as usual and are
+    /// shown as they were, and the day it is taken back is an ordinary day.
     public func isOnPause(_ rule: Rule, on date: CalendarDate) -> Bool {
-        guard let paused = pauseDay(of: rule) else { return false }
-        return date >= paused
+        guard !rule.isArchived else { return false }
+        if let paused = pauseDay(of: rule) { return date >= paused }
+
+        let mine = activations.filter { $0.ruleID == rule.id }
+        // Only a rule that was taken back later has a past pause to show.
+        guard mine.contains(where: { $0.from > date }) else { return false }
+        if isCovered(rule, on: date) {
+            // The last day of a stretch, if the pause stood it down.
+            return mine.contains { $0.to == date } && occurrences.contains {
+                $0.ruleID == rule.id && $0.date == date && $0.status == .skipped
+            }
+        }
+        return mine.contains { stretch in stretch.to.map { $0 < date } ?? false }
+    }
+
+    /// Whether a day of a rule is set aside *and* outside every stretch: the
+    /// days a pause leaves without a card, and not a day anything was asked of.
+    public func isPausedAndNotAsked(_ rule: Rule, on date: CalendarDate) -> Bool {
+        isOnPause(rule, on: date) && !isCovered(rule, on: date)
+    }
+
+    private func isCovered(_ rule: Rule, on date: CalendarDate) -> Bool {
+        activations.contains { $0.ruleID == rule.id && $0.covers(date) }
+    }
+
+    /// Pausing a rule as of a day, as a plan to apply.
+    ///
+    /// The day it is paused still counts if it was kept, which is what someone
+    /// means who keeps a rule in the morning and pauses in the evening. If it was
+    /// due and nothing was recorded, the day is stood down instead, so pausing
+    /// first and keeping nothing never reads as a miss. The stand-down is a
+    /// record like any other, so it stays true after the rule is taken back.
+    public func pausePlan(for rule: Rule, on date: CalendarDate) -> EditPlan {
+        var plan = EditPlanner().pause(rule: rule, activations: activations, on: date)
+        let unrecordedAndDue = entries(on: date).contains {
+            $0.rule.id == rule.id && $0.occurrence == nil && $0.dispensation == nil
+        }
+        if unrecordedAndDue {
+            plan.newOccurrences.append(Occurrence(ruleID: rule.id, date: date, status: .skipped))
+        }
+        return plan
+    }
+
+    /// A rule paused and taken back on the same day was never really set aside,
+    /// so the stand-down the pause wrote for that day goes with it. Nil on any
+    /// other day, and when the person stood the day down themselves earlier.
+    public func standDownLiftedOnResume(for rule: Rule, on date: CalendarDate) -> Occurrence? {
+        guard pauseDay(of: rule) == date else { return nil }
+        return occurrences.first {
+            $0.ruleID == rule.id && $0.date == date && $0.status == .skipped
+        }
     }
 
     /// Paused rules on the days after the pause on which they would have fallen.
@@ -125,7 +181,7 @@ public struct Practice: Sendable {
     /// count towards a settled day, a reminder, or a score.
     public func pausedEntries(on date: CalendarDate) -> [DayEntry] {
         rules.compactMap { rule -> DayEntry? in
-            guard let paused = pauseDay(of: rule), date > paused else { return nil }
+            guard isPausedAndNotAsked(rule, on: date) else { return nil }
             // Would it fall today, had it been in force? Asked of a stretch that
             // covers only this day, so the rule's own pattern decides.
             let hypothetical = [Activation(ruleID: rule.id, from: date, to: date)]
@@ -135,6 +191,12 @@ public struct Practice: Sendable {
             return DayEntry(rule: rule, date: date, occurrence: nil, dispensation: nil)
         }
         .sorted(by: Practice.isShownBefore)
+    }
+
+    /// The rules that may still be reminded of on a day: all but those the person
+    /// has paused. A card greyed as Paused must not go on asking.
+    public func rulesNotOnPause(on date: CalendarDate) -> [Rule] {
+        rules.filter { !isOnPause($0, on: date) }
     }
 
     /// What Home shows for a day: the rules that are due, then the paused rules

@@ -157,11 +157,9 @@ struct EntryRow: View {
     private var isPaused: Bool { model.isOnPause(entry.rule, on: entry.date) }
     /// Set aside, for the day or for good: shown greyed, and marked.
     private var isResting: Bool { isPaused || entry.isStoodDown }
-    /// A day after the pause was never asked of anyone, so there is nothing to
-    /// keep and no circle to tick.
-    private var isAfterPause: Bool {
-        model.pauseDay(of: entry.rule).map { entry.date > $0 } ?? false
-    }
+    /// A day outside the rule's stretch because it was paused was never asked of
+    /// anyone, so there is nothing to keep and no circle to tick.
+    private var isAfterPause: Bool { model.isPausedAndNotAsked(entry.rule, on: entry.date) }
     private func setExpanded(_ value: Bool) { expandedID = value ? entry.rule.id : nil }
     private var category: RuleCategory? { entry.rule.category.flatMap(RuleCategory.init(rawValue:)) }
     private var summary: String {
