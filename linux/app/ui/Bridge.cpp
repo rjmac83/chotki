@@ -423,6 +423,9 @@ QString Bridge::soundPlayer() const {
         const QString path = QStandardPaths::findExecutable(QString::fromLatin1(name));
         if (!path.isEmpty()) return path;
     }
+    for (const char *path : {"/usr/bin/pw-play", "/usr/bin/paplay", "/usr/bin/aplay"}) {
+        if (QFileInfo::exists(QString::fromLatin1(path))) return QString::fromLatin1(path);
+    }
     return {};
 }
 
@@ -433,11 +436,14 @@ void Bridge::playSound(const QString &name) {
     else if (name == "bell") file = m_bellWav;
     else return;
     m_lastPlayed = name;
+    const bool audible = !file.isEmpty() && QFileInfo::exists(file);
+    if (audible) ++m_playbackStarts;
     emit changed();
-    // Reduced motion and a missing player leave the record alone. The cue is
-    // still recorded so the rope test can see that the knot landed.
-    if (m_reducedMotion) return;
-    if (file.isEmpty() || !QFileInfo::exists(file)) return;
+    // Reduced motion skips the opening mark. It does not skip the rope.
+    // The Mac player keeps a click, a knock, and a chime in rotation and
+    // plays them either way. A new process leaves the previous tone running,
+    // so a click does not cut the one before it.
+    if (!audible) return;
     if (m_soundPlayer.isEmpty()) m_soundPlayer = soundPlayer();
     if (m_soundPlayer.isEmpty()) return;
     auto *playback = new QProcess(this);

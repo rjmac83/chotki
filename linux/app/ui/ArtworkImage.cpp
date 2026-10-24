@@ -59,6 +59,15 @@ void ArtworkImage::paint(QPainter *painter) {
     qreal scale = std::max(width() / m_image.width(), height() / m_image.height());
     qreal originX = (width() - m_image.width() * scale) / 2;
     qreal originY = (height() - m_image.height() * scale) / 2;
+    if (!m_drifting) {
+        // ProgressTabView pins the top of the icon. A centre crop on a wide
+        // strip cuts the halos off. If the pane is too short to keep the
+        // faces at a width-covering scale, zoom out until that band fits.
+        const qreal faceLimit = height() / (m_image.height() * progressFaceBand());
+        if (scale > faceLimit) scale = faceLimit;
+        originX = (width() - m_image.width() * scale) / 2;
+        originY = 0;
+    }
     if (m_drifting) {
         // The same overscan and rest point as DriftingArtwork. Progress 1
         // is the curated crop, and it is where a review grab and reduced
@@ -76,6 +85,11 @@ void ArtworkImage::paint(QPainter *painter) {
         const qreal startY = sayingPanNearby(restY, lowerY, 0, 18, ySign);
         originX = startX + (restX - startX) * m_progress;
         originY = startY + (restY - startY) * m_progress;
+    }
+    if (std::abs(m_paintedScale - scale) > 0.0001 || std::abs(m_paintedOriginY - originY) > 0.0001) {
+        m_paintedScale = scale;
+        m_paintedOriginY = originY;
+        emit painted();
     }
     painter->drawImage(QRectF(originX, originY, m_image.width() * scale, m_image.height() * scale), m_image);
 

@@ -96,6 +96,7 @@ Item {
                     Canvas {
                         id: ring
                         anchors.fill: parent
+                        antialiasing: true
                         onPaint: {
                             const context = getContext("2d")
                             context.reset()
@@ -105,10 +106,12 @@ Item {
                             const scale = width / layoutSide
                             const dot = bridge.prayerDot * scale
                             const bead = bridge.prayerBead * scale
+                            // Same circle as the Mac rope. ellipse() here is a
+                            // bounding box, so the old call drew half a knot.
                             function disc(centre, diameter, fill, stroke, width) {
                                 context.beginPath()
-                                context.ellipse(centre.x * scale, centre.y * scale,
-                                                diameter / 2, diameter / 2, 0, 0, Math.PI * 2)
+                                context.arc(centre.x * scale, centre.y * scale,
+                                            diameter / 2, 0, Math.PI * 2)
                                 if (fill) {
                                     context.fillStyle = fill
                                     context.fill()

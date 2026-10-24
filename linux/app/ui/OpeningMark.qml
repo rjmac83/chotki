@@ -61,6 +61,7 @@ Item {
         width: 220
         height: 220
         anchors.centerIn: parent
+        antialiasing: true
         scale: 0.85 + 0.15 * curtain.grown
         opacity: curtain.frameOpacity
         onPaint: {
@@ -70,13 +71,17 @@ Item {
             const ms = curtain.elapsed * 1000
             const knots = bridge.openingKnots
             const radius = bridge.openingKnotRadius * side
+            // Qt's ellipse() is the bounding box, not the HTML canvas call.
+            // Passing the centre and the radius drew each knot at half size,
+            // shifted down and right, so the cross looked large and too close.
+            // arc() is the same circle OpeningMarkDrawing fills.
             for (let index = 0; index < knots.length; index++) {
                 const alpha = curtain.knotAlpha(ms, index + 1) * curtain.frameOpacity
                 if (alpha <= 0) continue
                 const centre = knots[index]
                 context.beginPath()
                 context.fillStyle = "rgba(201, 162, 39, " + alpha + ")"
-                context.ellipse(centre.x * side, centre.y * side, radius, radius, 0, 0, Math.PI * 2)
+                context.arc(centre.x * side, centre.y * side, radius, 0, Math.PI * 2)
                 context.fill()
             }
             const cross = curtain.crossAlpha(ms) * curtain.frameOpacity

@@ -122,6 +122,21 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(updates.count() > 0, 3000);
         QCOMPARE(session->bridge->prayerCount(), 33);
         QCOMPARE(session->bridge->prayerEvent(), event);
+
+        // The Mac rope still clicks when motion is reduced. Silencing it here
+        // would leave a counted knot with no sound.
+        const int played = session->bridge->playbackStarts();
+        QVERIFY(played >= 1);
+        QVariantMap motion;
+        motion.insert(QStringLiteral("motion"), true);
+        session->bridge->saveSettings(motion);
+        QTRY_VERIFY_WITH_TIMEOUT(session->bridge->reducedMotion(), 8000);
+        session->bridge->startAgain();
+        QTRY_COMPARE_WITH_TIMEOUT(session->bridge->prayerCount(), 0, 3000);
+        session->bridge->advancePrayerAt(base + 80);
+        QTRY_COMPARE_WITH_TIMEOUT(session->bridge->prayerCount(), 1, 3000);
+        QTRY_COMPARE_WITH_TIMEOUT(session->bridge->lastPlayed(), QString("tick"), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(session->bridge->playbackStarts() > played, 3000);
     }
 
     void openingPlaysOncePerProcess() {

@@ -189,6 +189,24 @@ private slots:
         QQuickItem *image = findItem(page, "progress-image");
         QVERIFY(image);
         QCOMPARE(image->property("source").toUrl(), QUrl(session->bridge->progressArtworkUrl()));
+        QTRY_VERIFY_WITH_TIMEOUT(image->property("paintedScale").toDouble() > 0.0, 3000);
+        QVERIFY(qAbs(image->property("paintedOriginY").toDouble()) < 0.5);
+        QVERIFY(image->height() > 280.0);
+        QVERIFY(image->height() < 340.0);
+        const auto facesFit = [image] {
+            const double scale = image->property("paintedScale").toDouble();
+            const double band = image->property("imageHeight").toDouble()
+                * image->property("progressFaceBand").toDouble();
+            return band * scale <= image->height() + 1.0;
+        };
+        QVERIFY(facesFit());
+
+        session->window->resize(2200, 860);
+        QTRY_VERIFY_WITH_TIMEOUT(image->height() > 420.0 && facesFit(), 3000);
+        QVERIFY(qAbs(image->property("paintedOriginY").toDouble()) < 0.5);
+        const double rendered = image->property("imageWidth").toDouble()
+            * image->property("paintedScale").toDouble();
+        QVERIFY(rendered + 2.0 >= image->width());
     }
 };
 

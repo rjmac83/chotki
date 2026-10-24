@@ -163,11 +163,27 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 300
+        // The Mac strip is 300 tall and pins the top of the icon. A wider
+        // window cover-scales, and a strip that stayed 300 would push the
+        // faces out the bottom. Grow so the halo band stays inside, and
+        // never taller than the page, so a short window cannot clip the heads.
+        height: {
+            const page = parent ? parent.height : 0
+            let strip = 300
+            const iw = fresco.imageWidth
+            const ih = fresco.imageHeight
+            if (iw > 0 && ih > 0 && width > 0) {
+                const needed = ih * fresco.progressFaceBand * width / iw
+                if (needed > strip) strip = needed
+            }
+            if (page > 0 && strip > page) strip = page
+            return strip
+        }
 
         Rectangle { anchors.fill: parent; color: "#27252a" }
 
         ArtworkImage {
+            id: fresco
             objectName: "progress-image"
             anchors.fill: parent
             source: bridge.progressArtworkUrl

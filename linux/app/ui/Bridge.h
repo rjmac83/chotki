@@ -62,6 +62,7 @@ class Bridge final : public QObject {
     Q_PROPERTY(double openingKnotFade READ openingKnotFade NOTIFY changed)
     Q_PROPERTY(double openingStaggerLead READ openingStaggerLead NOTIFY changed)
     Q_PROPERTY(QString lastPlayed READ lastPlayed NOTIFY changed)
+    Q_PROPERTY(int playbackStarts READ playbackStarts NOTIFY changed)
     Q_PROPERTY(bool readingReady READ readingReady NOTIFY changed)
     Q_PROPERTY(QString readingTitle READ readingTitle NOTIFY changed)
     Q_PROPERTY(QString readingSummary READ readingSummary NOTIFY changed)
@@ -167,6 +168,7 @@ public:
     double openingKnotFade() const { return m_openingKnotFade; }
     double openingStaggerLead() const { return m_openingStaggerLead; }
     QString lastPlayed() const { return m_lastPlayed; }
+    int playbackStarts() const { return m_playbackStarts; }
     bool readingReady() const { return m_readingReady; }
     QString readingTitle() const { return m_readingTitle; }
     QString readingSummary() const { return m_readingSummary; }
@@ -378,6 +380,7 @@ private:
     QString m_tockWav;
     QString m_bellWav;
     QString m_lastPlayed;
+    int m_playbackStarts = 0;
     QString m_soundPlayer;
     bool m_readingReady = false;
     QString m_readingTitle;
