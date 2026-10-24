@@ -176,7 +176,7 @@ Three platforms, all in daily testing by Ryan.
 
 | | |
 |---|---|
-| macOS | 1.0 beta, build 31; universal (arm64 + x86_64), ad-hoc signed, not notarised; Intel slice never run |
+| macOS | 1.0 beta, build 34 (24 October 2026); universal (arm64 + x86_64), Developer ID signed and **notarised** DMG via `macos/release-dmg.sh`; Intel slice never run |
 | Android | 1.0 beta, build 31; sideload, signed with his own key; ships the calendar |
 | iOS | 1.0 beta, build 31; redesigned phone interface, free provisioning for seven days, no public download |
 
@@ -185,10 +185,9 @@ Do not infer that a named person has a build from its publication.
 
 Outstanding, in rough priority:
 
-1. **Notarisation**, or every macOS tester must go through System Settings ›
-   Privacy and Security, and iOS cannot reach TestFlight at all. Needs the Apple
-   Developer Program at $99/yr — his call, and now the single biggest blocker to
-   anyone else running the iOS build.
+1. **Notarisation** — **done for macOS** (24 October 2026): the DMG is Developer
+   ID signed, notarised and stapled. What remains is iOS, which still cannot reach
+   TestFlight from here, so the iOS build cannot yet be handed to anyone else.
 2. **A priest's review** of the glossary and the patristic attributions. He has
    said this will happen before the app goes further.
 3. **Landscape remains outstanding despite the beta release.** Asked for on 26 August: the phones

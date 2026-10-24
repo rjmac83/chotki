@@ -17,7 +17,7 @@ You can add items of your own, whether or not they are Church canon, so that a r
 **1.0 beta, build 31.**
 
 - **Android** — Android 8 / API 26 or later. Sideload for now; see [Getting it](#android). In daily use by its author.
-- **macOS** — macOS 13 or later, Apple Silicon and Intel in one universal download. The Intel half is built but has never been run on an Intel Mac. Signed by its author rather than notarised by Apple, so macOS will refuse to open it until you allow it in Privacy and Security. See [Getting it](#getting-it).
+- **macOS** — macOS 13 or later, Apple Silicon and Intel in one universal disk image, signed with a Developer ID and notarised by Apple. The Intel half is built and notarised but has never been run on an Intel Mac. See [Getting it](#getting-it).
 - **iOS** — not a public download. A free Apple developer account cannot use TestFlight, and a phone build signed that way stops opening after seven days.
 - **Windows** — an x86_64 Windows 11 alpha, [alpha-rc3-build35](https://github.com/rjmac83/chotki/releases/tag/windows-alpha-rc3-build35), published as a prerelease. See [Windows status](windows/README.md).
 
@@ -109,19 +109,20 @@ Our sincere thanks to the Orthocal project and everyone who has contributed to i
 
 **macOS 13 or later.** The download is a universal binary, so it carries code for both Apple Silicon and Intel.
 
-> **The Intel half has never been run.** It is built and signed alongside the Apple Silicon one and nobody here owns an Intel Mac to open it on. If you are on Intel and it does not start, that is worth telling us about — and please check step 4 below first, because a Mac refusing an unnotarised app and a Mac unable to run a binary look exactly the same from the outside.
+> **The Intel half has never been run.** It is built, signed and notarised alongside the Apple Silicon one, but nobody here owns an Intel Mac to open it on. Notarisation checks the code; it does not run it. If you are on Intel and it does not start, that is worth telling us about.
 
-1. Download `Chotki.zip` from the [releases page](../../releases) and unzip it.
-2. Drag **Chotki.app** into your Applications folder.
-3. Open it. **macOS will refuse the first time** — this is expected, and is explained below.
-4. Go to **System Settings › Privacy & Security**, scroll down, and next to the message about Chotki click **Open Anyway**. Confirm.
-5. It will ask permission to send notifications. Allow it if you want reminders; the app works either way.
+1. Download the `.dmg` (for example `Chotki-1.0-beta-build-34.dmg`) from the [releases page](../../releases) and open it.
+2. Drag **Chotki** onto the **Applications** shortcut in the window that opens.
+3. Open Chotki from Applications. macOS may ask once whether you are sure you want to open an app downloaded from the internet; choose **Open**.
+4. It will ask permission to send notifications. Allow it if you want reminders; the app works either way.
+
+If you have an earlier build installed, drag the new one over it. Your record is kept: it lives outside the app.
 
 To check which half you are running: `lipo -archs /Applications/Chotki.app/Contents/MacOS/Chotki` lists both, and `uname -m` says which one your Mac will use — `arm64` for Apple Silicon, `x86_64` for Intel.
 
-#### Why macOS blocks it
+#### Signed and notarised
 
-This build is signed by its author rather than notarised by Apple. MacOS cannot tell an unnotarised app from a harmful one, so it refuses both. The source is here to read if you would rather check it yourself, and the whole app is built by the script in `macos/build-app.sh` if you would rather build it than trust a download.
+The disk image and the app inside it are signed with the author's Developer ID and have been checked and notarised by Apple, which is why macOS opens them without sending you to Privacy & Security. Earlier builds were signed only by their author and had to be allowed there by hand. The source is here to read if you would rather check it yourself, and the app is built and notarised by `macos/release-dmg.sh` (or built unsigned by `macos/build-app.sh`) if you would rather build it than trust a download.
 
 #### Removing it
 
