@@ -658,24 +658,28 @@ Item {
             color: settings.gold
             font.pixelSize: 12
         }
-        delegate: ItemDelegate {
-            id: choice
-            required property int index
-            required property var modelData
-            width: box.width
-            height: 36
-            highlighted: box.highlightedIndex === index
-            contentItem: Label {
-                text: box.textRole ? choice.modelData[box.textRole] : String(choice.modelData)
-                color: choice.highlighted ? settings.gold : settings.parchment
-                font.pixelSize: 14
-                leftPadding: 12
-                rightPadding: 12
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-            background: Rectangle {
-                color: choice.highlighted ? "#2a261c" : "#1c1e26"
+        // Inside a component, Qt 6.4 does not wrap an object assigned to
+        // delegate. The welcome menu is an instance, so it stays as written.
+        delegate: Component {
+            ItemDelegate {
+                id: choice
+                required property int index
+                required property var modelData
+                width: box.width
+                height: 36
+                highlighted: box.highlightedIndex === index
+                contentItem: Label {
+                    text: box.textRole ? choice.modelData[box.textRole] : String(choice.modelData)
+                    color: choice.highlighted ? settings.gold : settings.parchment
+                    font.pixelSize: 14
+                    leftPadding: 12
+                    rightPadding: 12
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+                background: Rectangle {
+                    color: choice.highlighted ? "#2a261c" : "#1c1e26"
+                }
             }
         }
         popup: Popup {

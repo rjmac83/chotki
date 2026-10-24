@@ -211,6 +211,8 @@ On 2026-10-12 the home calendar was still the wide layout, with the month beside
 
 On 2026-10-24 a person compared this window with the Mac. The hard bands were the edge fade painted as a flat strip; the scroll views now mask their own edges. The calendar chevron is the wide gold mark. Adding a rule opens a sheet with Back, and the library stays behind it. The sidebar, the week and the month, the reading sections, and the cards animate when motion is allowed. The church, the reckoning, the clock, and the reminder lead are menus. Glossary, Settings, and Prayers scroll. The arm64 package is the same 0.1.0~alpha2, copied to the guest desktop, and it was not installed. Plasma and Xfce are still not installed. The hold is unchanged. The Ubuntu 24.04 amd64 half of this change is the GitHub workflow, and that run is not recorded here.
 
+Later the same day that workflow failed while building the settings menus: Qt 6.4 would not accept the menu delegate inside the settings component, so the church note never appeared. The delegate is now a component. The arm64 package on the guest desktop is the earlier build, which already shows those menus on the guest's Qt. The hold is unchanged. That workflow run is not recorded here.
+
 ## Package targets
 
 The release artifact is an `amd64` `.deb` built on Ubuntu 24.04. That job stays in GitHub CI. This ARM guest does not cross-compile it.
