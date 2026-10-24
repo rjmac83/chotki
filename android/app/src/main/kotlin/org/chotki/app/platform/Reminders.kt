@@ -46,9 +46,10 @@ object Reminders {
             // Only what is still ahead: arming an alarm for a moment that has
             // passed fires it immediately, which is how a reboot at lunchtime
             // would deliver the whole morning at once.
+            val practice = org.chotki.core.Practice(rules, activations, occurrences, settings)
             val pending = listOf(today, tomorrow).flatMap { day ->
                 scheduler.pending(
-                    rules = rules,
+                    rules = practice.rulesNotOnPause(day),
                     activations = activations,
                     occurrences = occurrences,
                     on = day,
@@ -62,7 +63,8 @@ object Reminders {
             // swiped away; core has always had `cancellationIDs` for this and
             // nothing on Android called it.
             val wanted = pending.map { it.request.id }.toSet()
-            val stale = scheduler.plan(rules, activations, emptyList(), today)
+            val todayPractice = org.chotki.core.Practice(rules, activations, emptyList(), settings)
+            val stale = scheduler.plan(todayPractice.rulesNotOnPause(today), activations, emptyList(), today)
                 .map { it.request.id }
                 .filterNot { it in wanted }
             if (stale.isNotEmpty()) AndroidNotifier(context).cancel(stale)

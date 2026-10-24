@@ -215,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         let today = model.today
-        let outstanding = model.entries(on: today).filter { !$0.isKept && !$0.isStoodDown }
+        let outstanding = model.outstandingEntries(on: today)
 
         if let next = outstanding.first {
             let mark = NSMenuItem(
@@ -263,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func markNextKept() {
         guard let model else { return }
-        let outstanding = model.entries(on: model.today).filter { !$0.isKept && !$0.isStoodDown }
+        let outstanding = model.outstandingEntries(on: model.today)
         guard let next = outstanding.first else { return }
         model.toggleKept(next)
     }

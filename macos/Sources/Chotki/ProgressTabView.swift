@@ -10,6 +10,7 @@ import ChotkiCore
 /// this view by design.
 struct ProgressTabViewContent: View {
     @ObservedObject var model: AppModel
+    @State private var confirmingReset = false
 
     var body: some View {
         let report = model.report()
@@ -29,17 +30,46 @@ struct ProgressTabViewContent: View {
             if report.hasAnythingDue {
                 Rectangle().fill(Theme.line).frame(height: 1).padding(.top, 4)
                 perRule(report)
-
-                Button { model.openDetachedReport?() } label: {
-                    Label("Open in a window", systemImage: "macwindow")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.gold)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 10)
             }
+
+            // Kept together, and above the fold: a button under the picture
+            // panel is a button nobody can find.
+            HStack(spacing: 22) {
+                if report.hasAnythingDue {
+                    Button { model.openDetachedReport?() } label: {
+                        Label("Open in a window", systemImage: "macwindow")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Theme.gold)
+                    }
+                    .buttonStyle(.plain)
+                }
+                resetButton
+            }
+            .padding(.top, 12)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
+        .alert("Are you sure?", isPresented: $confirmingReset) {
+            Button("Yes") { model.resetRecord() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will completely erase your record and cannot be undone.")
+        }
+    }
+
+    // MARK: starting again
+
+    /// Always there, because someone with nothing yet recorded may still want to
+    /// clear a rule's old stretch. Quiet, and not red: it is a legitimate thing
+    /// to want, not a warning.
+    private var resetButton: some View {
+        Button { confirmingReset = true } label: {
+            Label("Reset record", systemImage: "arrow.counterclockwise")
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.muted)
+        }
+        .buttonStyle(.plain)
+        .overlay { NativeClickRegion(action: { confirmingReset = true }) }
+        .accessibilityLabel("Reset record")
     }
 
     // MARK: prose, which leads

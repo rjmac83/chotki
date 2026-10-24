@@ -522,16 +522,25 @@ def main():
         assert next(item["id"] for item in edited["entries"] if item["title"] == "Evening prayers") == evening_id
 
         paused = ask("pauseRule", ruleID=morning_id)
-        # The day a rule is paused still counts. The next day shows only what is left running.
+        # The day a rule is paused still counts. Nothing was recorded, so the
+        # pause stands that day down. The next day still lists it, greyed.
         today = paused["today"]
+        morning = next(item for item in paused["entries"] if item["id"] == morning_id)
+        assert morning["paused"] is True and morning["afterPause"] is False
+        assert morning["stoodDown"] is True and morning["pausedOnPurpose"] is True
         assert {item["title"] for item in paused["entries"]} == {"Morning prayers", "Evening prayers"}
         tomorrow = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
         later = ask("selectDate", date=tomorrow)
-        assert [item["title"] for item in later["entries"]] == ["Evening prayers"], later["entries"]
+        assert {item["title"] for item in later["entries"]} == {"Morning prayers", "Evening prayers"}, later["entries"]
+        rested = next(item for item in later["entries"] if item["id"] == morning_id)
+        assert rested["paused"] is True and rested["afterPause"] is True
+        assert rested["kept"] is False and rested["stoodDown"] is False
         ask("selectDate", date=today)
         resumed = ask("prepareTemplate", template="morning-prayers")
         assert resumed["editor"]["open"] is False
-        assert next(item["id"] for item in resumed["entries"] if item["title"] == "Morning prayers") == morning_id
+        morning = next(item for item in resumed["entries"] if item["id"] == morning_id)
+        assert morning["id"] == morning_id
+        assert morning["paused"] is False and morning["stoodDown"] is False
         ask("pauseRule", ruleID=morning_id)
 
         ask("setSpiritualFather", name="Father Seraphim")
@@ -664,7 +673,7 @@ def main():
         assert any("not a substitute for a priest" in "".join(span["text"] for span in paragraph["spans"])
                    for paragraph in page["welcomeParagraphs"])
         assert page["fasting"] == "shown" and page["feasts"] == "shown"
-        assert page["version"] == "Linux alpha 0.1.0~alpha2"
+        assert page["version"] == "1.0 beta"
         assert page["backupDirectory"].endswith("/Chotki/backups")
         saved = ask("saveSettings", name="Helen", church="Romanian Orthodox Church", welcome=True)
         assert saved["displayName"] == "Helen" and saved["needsWelcome"] is False
@@ -856,6 +865,41 @@ def main():
         assert refused["ok"] is False
         assert refused["error"] == "Nothing was asked on this day."
         assert occurrence_count(review_dir) == before
+        close(review)
+
+    with tempfile.TemporaryDirectory(prefix="chotki-review-reset-") as review_dir:
+        environment = os.environ.copy()
+        environment["CHOTKI_LINUX_REVIEW_DIR"] = review_dir
+        review, ask = conversation(helper, "--review", environment)
+        home = ask("snapshot")
+        morning = next(item for item in home["entries"] if item["title"] == "Morning prayers")
+        evening = next(item for item in home["entries"] if item["title"] == "Evening prayers")
+        kept_pause = ask("pauseRule", ruleID=morning["id"])
+        kept_row = next(item for item in kept_pause["entries"] if item["id"] == morning["id"])
+        assert kept_row["kept"] is True and kept_row["stoodDown"] is False and kept_row["paused"] is True
+        ask("resumeRule", ruleID=morning["id"])
+        stood = ask("pauseRule", ruleID=evening["id"])
+        stood_row = next(item for item in stood["entries"] if item["id"] == evening["id"])
+        assert stood_row["stoodDown"] is True and stood_row["paused"] is True
+        lifted = ask("resumeRule", ruleID=evening["id"])
+        lifted_row = next(item for item in lifted["entries"] if item["id"] == evening["id"])
+        assert lifted_row["stoodDown"] is False and lifted_row["pausedOnPurpose"] is False
+        ask("pauseRule", ruleID=evening["id"])
+        backups = Path(review_dir) / "backups"
+        backups.mkdir()
+        automatic = backups / "chotki-2026-01-01.json"
+        automatic.write_text("{}\n")
+        notes = backups / "notes.json"
+        notes.write_text("{}\n")
+        exported = Path(review_dir) / "chotki-mine.json"
+        exported.write_text("{}\n")
+        assert occurrence_count(review_dir) > 1
+        reset = ask("resetRecord")
+        assert reset["progress"]["notice"] == "Your record has been cleared. Counting begins today."
+        assert occurrence_count(review_dir) == 1
+        assert occurrence_status(review_dir, evening["id"], home["today"])[0] == "skipped"
+        assert not automatic.exists()
+        assert notes.exists() and exported.exists()
         close(review)
 
     human_after = human_review.stat().st_mtime_ns if human_review.exists() else None

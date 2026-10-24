@@ -94,7 +94,7 @@ jobs:
           grep -q 'kjv.json' /tmp/chotki-package-contents.txt
           grep -q 'psalter.json' /tmp/chotki-package-contents.txt
           grep -q 'calendar/manifest.json' /tmp/chotki-package-contents.txt
-          grep -q 'Version: 0.1.0~alpha2' /tmp/chotki-package-info.txt
+          grep -q 'Version: 1.0~beta' /tmp/chotki-package-info.txt
           grep -q sqlite /tmp/chotki-package-info.txt
           if grep -q '/home/' /tmp/chotki-package-contents.txt; then
             echo "package contains a home path" >&2
@@ -159,7 +159,7 @@ jobs:
           set -eu
           data=$(mktemp -d)
           restored=$(mktemp -d)
-          CHOTKI_EXPECT_VERSION="Linux alpha 0.1.0~alpha2" \
+          CHOTKI_EXPECT_VERSION="1.0 beta" \
             python3 linux/tools/installed-flow.py \
             /usr/lib/chotki/ChotkiLinuxBridge "$data" "$restored"
           db="$data/Chotki/chotki.sqlite"
@@ -168,10 +168,10 @@ jobs:
           test "$(sha256sum "$db")" = "$sum"
           stage=$(mktemp -d)
           dpkg-deb -R ./linux-dist/*.deb "$stage"
-          sed -i 's/^Version: .*/Version: 0.1.0~alpha3/' "$stage/DEBIAN/control"
+          sed -i 's/^Version: .*/Version: 1.0~beta2/' "$stage/DEBIAN/control"
           dpkg-deb --build --root-owner-group "$stage" /tmp/chotki-upgrade.deb
           sudo dpkg -i /tmp/chotki-upgrade.deb
-          test "$(dpkg-query -W -f='${Version}' chotki)" = "0.1.0~alpha3"
+          test "$(dpkg-query -W -f='${Version}' chotki)" = "1.0~beta2"
           test "$(sha256sum "$db")" = "$sum"
           sudo apt-get remove -y chotki
           test ! -e /usr/lib/chotki

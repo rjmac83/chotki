@@ -8,8 +8,9 @@ private func plannedReminders(_ store: SQLiteStore) throws -> [PlannedNotificati
     let settings = try store.loadSettings() ?? .default
     let scheduler = Scheduler(policy: settings.reminders, timeZone: .current)
     let today = CalendarDate(Date(), in: .current)
+    let practice = try dayPractice(store, on: today)
     return scheduler.plan(
-        rules: try store.rules(includeArchived: false),
+        rules: practice.rulesNotOnPause(on: today),
         activations: try store.activations(ruleID: nil),
         occurrences: try store.occurrences(ruleID: nil, from: today.adding(days: -1), through: today),
         on: today

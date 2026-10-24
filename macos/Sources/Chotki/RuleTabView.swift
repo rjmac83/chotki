@@ -84,7 +84,7 @@ struct DayPanel: View {
                     Text("\(old.day) \(Format.shortMonth(old.month)) o.s.").font(.system(size: 12)).foregroundStyle(Theme.muted)
                 }
             }.foregroundStyle(Theme.parchment)
-            if model.entries(on: model.selectedDate).isEmpty {
+            if model.entriesIncludingPaused(on: model.selectedDate).isEmpty {
                 VStack(spacing: 14) {
                     Button { openLibrary() } label: {
                         Image(systemName: "plus").font(.system(size: 24)).padding(16)
@@ -103,7 +103,7 @@ struct DayPanel: View {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
                         HStack(alignment: .top, spacing: 12) {
-                            ForEach(model.entries(on: model.selectedDate)) { entry in
+                            ForEach(model.entriesIncludingPaused(on: model.selectedDate)) { entry in
                                 EntryRow(model: model, entry: entry, expandedID: $expandedRuleID)
                                     .id(entry.rule.id)
                             }
@@ -152,6 +152,14 @@ struct EntryRow: View {
         _expandedID = expandedID
     }
     private var expanded: Bool { expandedID == entry.rule.id }
+    /// The rule is on pause as of this day: paused by the person, on or after
+    /// the day it was paused.
+    private var isPaused: Bool { model.isOnPause(entry.rule, on: entry.date) }
+    /// Set aside, for the day or for good: shown greyed, and marked.
+    private var isResting: Bool { isPaused || entry.isStoodDown }
+    /// A day outside the rule's stretch because it was paused was never asked of
+    /// anyone, so there is nothing to keep and no circle to tick.
+    private var isAfterPause: Bool { model.isPausedAndNotAsked(entry.rule, on: entry.date) }
     private func setExpanded(_ value: Bool) { expandedID = value ? entry.rule.id : nil }
     private var category: RuleCategory? { entry.rule.category.flatMap(RuleCategory.init(rawValue:)) }
     private var summary: String {
@@ -237,7 +245,7 @@ struct EntryRow: View {
                 }.buttonStyle(.plain).offset(x: -6, y: 198)
                     .accessibilityLabel("Learn more about \(glossarySlug)")
             }
-            if !flipped || expanded {
+            if (!flipped || expanded) && !isAfterPause {
                 Button {
                     model.toggleKept(entry)
                     if expanded { setExpanded(false) }
@@ -246,11 +254,12 @@ struct EntryRow: View {
                     Circle().stroke(Theme.goldDim, lineWidth: 1)
                     if entry.showsAsSatisfied { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(ink) }
                 }.frame(width: 21, height: 21).padding(10) }
+                .opacity(isResting ? 0.55 : 1)
                 .buttonStyle(.plain).accessibilityLabel(entry.isKept ? "Clear \(entry.rule.title) for this day" : "Mark \(entry.rule.title) kept")
             }
             RuleCardInteraction(
                 title: entry.rule.title,
-                showsCompletion: (!flipped || expanded) && !entry.isDispensed,
+                showsCompletion: (!flipped || expanded) && !entry.isDispensed && !isAfterPause,
                 showsExpansion: needsExpansion && !expanded,
                 showsGlossary: flipped && glossarySlug != nil,
                 menuActions: menuActions,
@@ -283,18 +292,27 @@ struct EntryRow: View {
             }
             actions.append(Action(title: destination, perform: openDestination))
             if needsExpansion { actions.append(Action(title: expanded ? "Collapse Card" : "Expand Card", perform: { setExpanded(!expanded) })) }
-            actions.append(Action(title: "—", perform: {}))
-            actions.append(Action(title: entry.isKept ? "Clear This Day" : "Mark as Kept", perform: { model.toggleKept(entry) }))
-            if !entry.isKept { actions.append(Action(title: "Mark as Kept, Late", perform: { model.markKeptLate(entry) })) }
-            actions.append(Action(title: "Stand Down for This Day", perform: { model.setStatus(.skipped, for: entry.rule, on: entry.date) }))
+            if !isAfterPause {
+                actions.append(Action(title: "—", perform: {}))
+                actions.append(Action(title: entry.isKept ? "Clear This Day" : "Mark as Kept", perform: { model.toggleKept(entry) }))
+                if !entry.isKept { actions.append(Action(title: "Mark as Kept, Late", perform: { model.markKeptLate(entry) })) }
+                // Ticked while it is so; choosing it again lifts the stand-down.
+                actions.append(Action(title: "Stand Down for This Day", isOn: entry.isStoodDown, perform: {
+                    if entry.isStoodDown { model.clearOccurrence(entry) }
+                    else { model.setStatus(.skipped, for: entry.rule, on: entry.date) }
+                }))
+            }
         } else {
             actions.append(Action(title: "Lifted by the Church Today", perform: {}))
         }
         if let slug = entry.rule.glossarySlug { actions.append(Action(title: "About This Rule", perform: { model.openGlossary(slug) })) }
         actions.append(Action(title: "—", perform: {}))
         actions.append(Action(title: "Edit Rule…", perform: { model.screen = .editor(entry.rule.id) }))
-        if model.isPaused(entry.rule) { actions.append(Action(title: "Resume This Rule", perform: { model.resume(entry.rule) })) }
-        else { actions.append(Action(title: "Pause This Rule", perform: { model.standDown(entry.rule) })) }
+        // Ticked while the rule is paused; choosing it again takes the rule back.
+        let paused = model.isPausedOnPurpose(entry.rule)
+        actions.append(Action(title: "Pause This Rule", isOn: paused, perform: {
+            if paused { model.resume(entry.rule) } else { model.standDown(entry.rule) }
+        }))
         return actions
     }
     private func face(back: Bool, expanded: Bool) -> some View {
@@ -315,14 +333,21 @@ struct EntryRow: View {
                     Text(recordedAttribution)
                         .font(.system(size: 10)).foregroundStyle(mutedInk).lineLimit(expanded ? nil : 2)
                 }
-                Text(entry.isDispensed ? "Lifted Today" : entry.isStoodDown ? "Stood Down" :
+                Text(isPaused ? "Paused" : entry.isDispensed ? "Lifted Today" : entry.isStoodDown ? "Stood Down" :
                      entry.rule.timeOfDay.map { Format.time($0, model.settings.clockStyle) } ?? "All Day")
-                    .font(.system(size: 11)).foregroundStyle(mutedInk).layoutPriority(1)
+                    // The mark has to be readable through the greying, which is the
+                    // whole point of it, so it is heavier than the time it replaces.
+                    .font(.system(size: 11, weight: isResting ? .semibold : .regular))
+                    .foregroundStyle(isResting ? ink : mutedInk).layoutPriority(1)
             }
         }.padding(14).frame(width: expanded ? 300 : 132,
                             height: expanded ? expandedHeight : 232, alignment: .topLeading)
             .background(Theme.parchment, in: RoundedRectangle(cornerRadius: 22))
             .contentShape(RoundedRectangle(cornerRadius: 22))
+            // Greyed, not struck through and not red: setting a rule aside is a
+            // legitimate act, and the card should look rested rather than failed.
+            .saturation(isResting ? 0 : 1)
+            .opacity(isResting ? 0.6 : 1)
     }
 
     func open() {

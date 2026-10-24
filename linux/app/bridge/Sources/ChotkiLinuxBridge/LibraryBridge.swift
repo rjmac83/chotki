@@ -5,6 +5,16 @@ import Foundation
 // change is scoped, and when an activation opens or closes. The window lists
 // them and reports what was saved.
 
+/// Remembers that the person paused a rule, or took it back. A closed stretch
+/// with no marker is an edit, not a pause.
+func markPaused(_ store: SQLiteStore, rule: Rule, paused: Bool) throws {
+    var settings = try store.loadSettings() ?? .default
+    guard settings.pausedRuleIDs.contains(rule.id) != paused else { return }
+    settings.pausedRuleIDs.removeAll { $0 == rule.id }
+    if paused { settings.pausedRuleIDs.append(rule.id) }
+    try store.saveSettings(settings)
+}
+
 struct LibrarySession {
     var query: String = ""
     var draft: Rule?
@@ -376,10 +386,15 @@ func performLibrary(_ request: BridgeRequest, store: SQLiteStore, on date: Calen
         if let resting = held.rules.first(where: {
             titleMatches($0, template.title) && !$0.isArchived && isPaused($0, activations: held.activations)
         }) {
+            let practice = try dayPractice(store, on: today)
+            if let standDown = practice.standDownLiftedOnResume(for: resting, on: today) {
+                try store.removeOccurrence(ruleID: standDown.ruleID, date: standDown.date)
+            }
             var plan = EditPlan()
             plan.updatedRules = [CustomLibrary.takingUp(resting)]
             plan.newActivations = [Activation(ruleID: resting.id, from: today)]
             try store.apply(plan)
+            try markPaused(store, rule: resting, paused: false)
             try reconcileObservances(store)
             session.closeEditor()
             changedRecord = true
@@ -440,13 +455,22 @@ func performLibrary(_ request: BridgeRequest, store: SQLiteStore, on date: Calen
 
     case "pauseRule":
         let rule = try requireRule(request.ruleID, in: try store.rules(includeArchived: false))
-        let activations = try store.activations(ruleID: rule.id)
-        try store.apply(EditPlanner().pause(rule: rule, activations: activations, on: today))
+        let practice = try dayPractice(store, on: today)
+        // A rule already closed by an edit has nothing to pause.
+        guard !practice.isPaused(rule) else { break }
+        let plan = practice.pausePlan(for: rule, on: today)
+        try markPaused(store, rule: rule, paused: true)
+        try store.apply(plan)
         session.closeEditor()
         changedRecord = true
 
     case "resumeRule":
         let rule = try requireRule(request.ruleID, in: try store.rules(includeArchived: true))
+        let practice = try dayPractice(store, on: today)
+        if let standDown = practice.standDownLiftedOnResume(for: rule, on: today) {
+            try store.removeOccurrence(ruleID: standDown.ruleID, date: standDown.date)
+        }
+        try markPaused(store, rule: rule, paused: false)
         var plan = EditPlanner().resume(rule: rule, on: today)
         plan.updatedRules = [CustomLibrary.takingUp(rule)]
         try store.apply(plan)
@@ -472,6 +496,7 @@ func performLibrary(_ request: BridgeRequest, store: SQLiteStore, on date: Calen
             plan.newActivations = [Activation(ruleID: rule.id, from: today)]
         }
         try store.apply(plan)
+        try markPaused(store, rule: rule, paused: false)
         try reconcileObservances(store)
         changedRecord = true
 

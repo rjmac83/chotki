@@ -5,8 +5,8 @@ set -euo pipefail
 #
 # Runtime policy: the Swift libraries the helper actually links are bundled.
 # Qt, QML, and SQLite stay the Ubuntu packages named in Depends. The Linux
-# version stays on the 0.1.0~alpha series and does not follow the macOS build
-# number. Bump CHOTKI_PACKAGE_VERSION for every package handed to a reviewer.
+# version is 1.0~beta. It does not follow the macOS build number.
+# Bump CHOTKI_PACKAGE_VERSION for every package handed to a reviewer.
 if [[ $# -ne 3 ]]; then
     echo "Usage: package-deb.sh /path/to/chotki-linux /path/to/ChotkiLinuxBridge output-dir" >&2
     exit 2
@@ -17,7 +17,7 @@ helper=$(realpath "$2")
 output=$(realpath -m "$3")
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 arch=$(dpkg --print-architecture)
-version=${CHOTKI_PACKAGE_VERSION:-0.1.0~alpha2}
+version=${CHOTKI_PACKAGE_VERSION:-1.0~beta}
 package="$output/chotki_${version}_${arch}.deb"
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
@@ -181,7 +181,7 @@ cat > "$stage/usr/share/doc/chotki/RUNTIME.txt" <<RUNTIME
 Chotki Linux runtime
 
 Package version: $version
-This label is the Linux alpha series. It does not follow the macOS build number.
+This label is 1.0 beta. It does not follow the macOS build number.
 Bump it for every package handed to a reviewer.
 
 The Swift libraries the helper links are bundled in /usr/lib/chotki/swift.

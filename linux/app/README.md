@@ -64,7 +64,7 @@ changed routes in GNOME.
 An early `arm64` alpha `.deb` built and installed on the Ubuntu 26.04 guest;
 its installed review window launched. The package script
 bundles the Swift runtime libraries used by the helper and declares system
-Qt/QML packages. The reviewer package is 0.1.0~alpha2. SQLite stays the
+Qt/QML packages. The package version is 1.0~beta. SQLite stays the
 Ubuntu library the helper links. The Qt LGPL notice, the LGPL-3 text, and a
 runtime note ship beside the Swift, XCharter, and app licenses. Removing the
 package leaves `XDG_DATA_HOME/Chotki` in place. The clean-install check is the

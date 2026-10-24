@@ -8,6 +8,9 @@ import SwiftUI
 struct RuleCardInteraction: NSViewRepresentable {
     struct MenuAction {
         let title: String
+        /// Shown with a tick when the thing it does is already so. Choosing it
+        /// then undoes it, which is what "unselect" means in a menu.
+        var isOn = false
         let perform: () -> Void
     }
 
@@ -152,6 +155,7 @@ struct RuleCardInteraction: NSViewRepresentable {
                 let native = NSMenuItem(title: item.title, action: #selector(runMenuAction(_:)), keyEquivalent: "")
                 native.target = self
                 native.tag = index
+                native.state = item.isOn ? .on : .off
                 menu.addItem(native)
             }
             return menu

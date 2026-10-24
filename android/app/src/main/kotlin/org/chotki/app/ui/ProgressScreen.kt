@@ -1,6 +1,7 @@
 package org.chotki.app.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -15,11 +16,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +66,7 @@ fun ProgressScreen(state: AppState, modifier: Modifier = Modifier) {
     val report = state.report()
     val through = Practice.progressThrough(state.today)
     var platePx by remember { mutableIntStateOf(0) }
+    var confirmingReset by remember { mutableStateOf(false) }
     val density = LocalDensity.current
 
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -92,6 +97,26 @@ fun ProgressScreen(state: AppState, modifier: Modifier = Modifier) {
                         fontSize = 16.sp,
                         modifier = Modifier.semantics { contentDescription = "Progress heading" },
                     )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        "Reset record",
+                        color = Chotki.muted,
+                        fontFamily = Chotki.reading,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable { confirmingReset = true }
+                            .semantics { contentDescription = "Reset record" },
+                    )
+                    val cleared = state.notice
+                    if (cleared != null) {
+                        Spacer(Modifier.size(6.dp))
+                        Text(
+                            cleared,
+                            color = Chotki.parchmentDim,
+                            fontFamily = Chotki.reading,
+                            fontSize = 14.sp,
+                        )
+                    }
                     Spacer(Modifier.size(12.dp))
                     for (line in report.summary) {
                         Text(
@@ -157,6 +182,23 @@ fun ProgressScreen(state: AppState, modifier: Modifier = Modifier) {
                 .align(Alignment.BottomCenter)
                 .onSizeChanged { platePx = it.height },
         )
+
+        if (confirmingReset) {
+            AlertDialog(
+                onDismissRequest = { confirmingReset = false },
+                title = { Text("Are you sure?") },
+                text = { Text("This will completely erase your record and cannot be undone.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmingReset = false
+                        state.resetRecord()
+                    }) { Text("Yes") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmingReset = false }) { Text("Cancel") }
+                },
+            )
+        }
     }
 }
 

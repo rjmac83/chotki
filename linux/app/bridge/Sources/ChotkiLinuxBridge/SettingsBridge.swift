@@ -5,7 +5,7 @@ import Foundation
 // Core decides the church, the calendar, and the welcome words. This file
 // only carries them to the window and writes the record.
 
-let linuxAlphaVersion = "Linux alpha 0.1.0~alpha2"
+let linuxVersion = "1.0 beta"
 
 /// The directory that holds chotki.sqlite. Set once, when the helper opens.
 /// The helper handles one record on one thread.
@@ -113,6 +113,18 @@ func writeDailyBackup(_ store: SQLiteStore) {
     }
 }
 
+/// Deletes the dated copies this helper writes. A file the person exported
+/// themselves lives somewhere else and is left alone.
+func eraseAutomaticBackups() {
+    guard let directory = backupDirectoryURL(),
+          let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil
+          ) else { return }
+    for file in files where file.lastPathComponent.hasPrefix("chotki-") && file.pathExtension == "json" {
+        try? FileManager.default.removeItem(at: file)
+    }
+}
+
 func needsWelcome(_ settings: AppSettings, store: SQLiteStore) throws -> Bool {
     if settings.hasCompletedFirstRun { return false }
     return try store.rules(includeArchived: true).isEmpty
@@ -172,7 +184,7 @@ func settingsPayload(_ settings: AppSettings, store: SQLiteStore, notice: String
         launchAtLogin: settings.launchAtLogin,
         backupDirectory: backupDirectoryURL()?.path ?? "",
         backupHelp: "A copy is also written automatically each day, in the backups folder beside your record. Restoring merges into what is already here; nothing is removed.",
-        version: linuxAlphaVersion,
+        version: linuxVersion,
         aboutURL: "https://chotki.app/about",
         privacyURL: "https://chotki.app/privacy",
         notice: notice

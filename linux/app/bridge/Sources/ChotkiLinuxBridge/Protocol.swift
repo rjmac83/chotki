@@ -310,6 +310,12 @@ struct EntryPayload: Encodable {
     var dispensed: Bool
     var dispensation: String
     var stoodDown: Bool
+    /// On pause as of this day. The card is greyed and marked Paused.
+    var paused: Bool
+    /// A day the pause left outside the stretch. No circle and no day actions.
+    var afterPause: Bool
+    /// The rule is paused on purpose now, whatever day is on screen. The menu tick.
+    var pausedOnPurpose: Bool
     /// Where the first click goes: rope, prayers, reading, psalter, fast, or editor.
     var destination: String
     var selection: String?
@@ -419,6 +425,8 @@ struct ProgressPayload: Encodable {
     /// Rounded percent. Omitted when the figure is hidden or nothing has come due.
     var figure: Int? = nil
     var figureNote: String? = nil
+    /// Set when the record has just been cleared.
+    var notice: String? = nil
 }
 
 struct BridgeFailure: Encodable {

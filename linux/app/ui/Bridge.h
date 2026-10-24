@@ -99,6 +99,7 @@ class Bridge final : public QObject {
     Q_PROPERTY(QVariantList progressRules READ progressRules NOTIFY changed)
     Q_PROPERTY(QString progressFigure READ progressFigure NOTIFY changed)
     Q_PROPERTY(QString progressFigureNote READ progressFigureNote NOTIFY changed)
+    Q_PROPERTY(QString progressNotice READ progressNotice NOTIFY changed)
     Q_PROPERTY(QString progressArtworkUrl READ progressArtworkUrl NOTIFY changed)
     Q_PROPERTY(bool glossaryReady READ glossaryReady NOTIFY changed)
     Q_PROPERTY(QString glossaryNote READ glossaryNote NOTIFY changed)
@@ -205,6 +206,7 @@ public:
     QVariantList progressRules() const { return m_progressRules; }
     QString progressFigure() const { return m_progressFigure; }
     QString progressFigureNote() const { return m_progressFigureNote; }
+    QString progressNotice() const { return m_progressNotice; }
     QString progressArtworkUrl() const { return m_progressArtworkUrl; }
     bool glossaryReady() const { return m_glossaryReady; }
     QString glossaryNote() const { return m_glossaryNote; }
@@ -228,6 +230,7 @@ public:
     Q_INVOKABLE void toggleKept(const QString &ruleID);
     Q_INVOKABLE void markKeptLate(const QString &ruleID);
     Q_INVOKABLE void standDownDay(const QString &ruleID);
+    Q_INVOKABLE void clearDay(const QString &ruleID);
     Q_INVOKABLE void shiftWeek(int direction);
     Q_INVOKABLE void shiftMonth(int direction);
     Q_INVOKABLE void setMonthShown(bool shown);
@@ -243,6 +246,7 @@ public:
     Q_INVOKABLE void playSound(const QString &name);
     Q_INVOKABLE void showReading();
     Q_INVOKABLE void showProgress();
+    Q_INVOKABLE void resetRecord();
     Q_INVOKABLE void showGlossary(const QString &slug, const QString &query);
     Q_INVOKABLE void showSettings();
     Q_INVOKABLE void saveSettings(const QVariantMap &fields);
@@ -418,6 +422,7 @@ private:
     QVariantList m_progressRules;
     QString m_progressFigure;
     QString m_progressFigureNote;
+    QString m_progressNotice;
     QString m_progressArtworkUrl;
     bool m_glossaryReady = false;
     QString m_glossaryNote;

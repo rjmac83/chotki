@@ -114,10 +114,14 @@ private fun stillWanted(context: android.content.Context, ruleID: String, date: 
             engine = org.chotki.core.RecurrenceEngine(observances = settings.observances),
             policy = settings.reminders,
         )
+        val rules = store.rules()
+        val activations = store.activations()
+        val occurrences = store.occurrences(from = on, through = on)
+        val practice = org.chotki.core.Practice(rules, activations, occurrences, settings)
         scheduler.plan(
-            rules = store.rules(),
-            activations = store.activations(),
-            occurrences = store.occurrences(from = on, through = on),
+            rules = practice.rulesNotOnPause(on),
+            activations = activations,
+            occurrences = occurrences,
             on = on,
         ).any { it.ruleID == id }
     } catch (e: Exception) {

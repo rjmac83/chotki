@@ -141,7 +141,7 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
                                       networkPolicy: .never)
     let practice = Practice(rules: rules, activations: activations,
                             occurrences: occurrences, settings: settings, liturgical: liturgical)
-    let entries: [EntryPayload] = practice.entries(on: selectedDate).map { entry in
+    let entries: [EntryPayload] = practice.entriesIncludingPaused(on: selectedDate).map { entry in
         let summary = RuleLibrary.shared.templates.first { $0.title == entry.rule.title }?.summary
             ?? entry.rule.note ?? "A rule of your own."
         let time = entry.rule.timeOfDay.map { Format.time($0, settings.clockStyle) }
@@ -151,7 +151,11 @@ func homeSnapshot(store: SQLiteStore, on selectedDate: CalendarDate,
             category: RuleCategory(rawValue: entry.rule.category ?? "")?.displayName ?? "Rule",
             summary: summary, time: time ?? "All Day", kept: entry.isKept,
             dispensed: entry.isDispensed, dispensation: entry.dispensation ?? "",
-            stoodDown: entry.isStoodDown, destination: face.destination, selection: face.selection,
+            stoodDown: entry.isStoodDown,
+            paused: practice.isOnPause(entry.rule, on: selectedDate),
+            afterPause: practice.isPausedAndNotAsked(entry.rule, on: selectedDate),
+            pausedOnPurpose: practice.pauseDay(of: entry.rule) != nil,
+            destination: face.destination, selection: face.selection,
             band: face.band, action: face.action, back: face.back,
             glossarySlug: entry.rule.glossarySlug
         )
@@ -392,7 +396,7 @@ do {
                 noted.sayingPanStart = started.timeIntervalSince1970
                 respond(noted)
 
-            case "toggleKept", "markKeptLate", "standDownDay":
+            case "toggleKept", "markKeptLate", "standDownDay", "clearDay":
                 guard let raw = request.ruleID, let ruleID = UUID(uuidString: raw) else {
                     throw BridgeError.invalidRequest
                 }
@@ -421,6 +425,8 @@ do {
                     try store.save(Occurrence(
                         ruleID: ruleID, date: selectedDate, status: .skipped, completedAt: nil
                     ))
+                case "clearDay":
+                    try store.removeOccurrence(ruleID: ruleID, date: selectedDate)
                 default:
                     break
                 }
@@ -462,6 +468,12 @@ do {
 
             case "progress":
                 try performProgress(request, store: store)
+            case "resetRecord":
+                try resetRecord(store)
+                try performProgress(
+                    request, store: store,
+                    notice: "Your record has been cleared. Counting begins today."
+                )
 
             case "glossary":
                 try performGlossary(request, store: store)

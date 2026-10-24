@@ -22,6 +22,7 @@ import org.chotki.core.OccurrenceStatus
 import org.chotki.core.LiturgicalDay
 import org.chotki.core.NoLiturgicalData
 import org.chotki.core.Practice
+import org.chotki.core.RecordReset
 import org.chotki.core.PrayerScreen
 import org.chotki.core.Rule
 import org.chotki.core.RuleReference
@@ -316,7 +317,17 @@ class AppState(
 
     fun entries(on: CalendarDate): List<DayEntry> = practice.entries(on)
 
+    /** Home's list: what is due, and the paused rules that would have been. */
+    fun entriesIncludingPaused(on: CalendarDate): List<DayEntry> = practice.entriesIncludingPaused(on)
+
     fun isSettled(on: CalendarDate): Boolean = practice.isSettled(on)
+
+    fun isPausedOnPurpose(rule: Rule): Boolean = practice.pauseDay(rule) != null
+
+    fun isOnPause(rule: Rule, on: CalendarDate): Boolean = practice.isOnPause(rule, on)
+
+    fun isPausedAndNotAsked(rule: Rule, on: CalendarDate): Boolean =
+        practice.isPausedAndNotAsked(rule, on)
 
     fun report(days: Int = 30) = practice.report(days = days, today = today, zone = zone)
 
@@ -409,15 +420,34 @@ class AppState(
      * anyone — the whole point of it, and the reason it is not "give up".
      */
     fun pause(rule: Rule) {
-        store.apply(EditPlanner().pause(rule, activations, today))
+        // Only a rule that is in force can be paused. The plan is taken before
+        // the marker is written, while the stretch is still open.
+        if (practice.isPaused(rule)) return
+        val plan = practice.pausePlan(rule, today)
+        markPaused(rule, true)
+        store.apply(plan)
         load()
         rescheduleReminders()
     }
 
     fun resume(rule: Rule) {
+        // Same day: the stand-down the pause wrote goes with it, while the
+        // marker is still set. Then the marker is cleared, then the stretch opens.
+        val lifted = practice.standDownLiftedOnResume(rule, today)
+        if (lifted != null) store.removeOccurrence(lifted.ruleID, lifted.date)
+        markPaused(rule, false)
         store.apply(EditPlanner().resume(rule, today))
         load()
         rescheduleReminders()
+    }
+
+    /** Remembers that the person paused a rule, or took it back. */
+    private fun markPaused(rule: Rule, paused: Boolean) {
+        if ((rule.id in settings.pausedRuleIDs) == paused) return
+        val ids = settings.pausedRuleIDs.filterNot { it == rule.id }
+        val updated = settings.copy(pausedRuleIDs = if (paused) ids + rule.id else ids)
+        store.saveSettings(updated)
+        settings = updated
     }
 
     fun standDown(entry: DayEntry) {
@@ -429,6 +459,36 @@ class AppState(
             ),
         )
         load()
+        rescheduleReminders()
+    }
+
+    /** Lifts a stand-down. Absence is the day as it was, not a second status. */
+    fun clearOccurrence(entry: DayEntry) {
+        store.removeOccurrence(entry.rule.id, entry.date)
+        load()
+        rescheduleReminders()
+    }
+
+    /**
+     * Starts the record again from today. Stretches are cut before the history
+     * is erased, so a failure part-way cannot turn the past into misses. A
+     * backup the person exported themselves is left where they put it. This
+     * port has no separate automatic-backup folder to clear.
+     */
+    fun resetRecord() {
+        val plan = RecordReset().plan(
+            rules = rules,
+            activations = activations,
+            pausedRuleIDs = settings.pausedRuleIDs.toSet(),
+            today = today,
+        )
+        store.apply(plan.copy(newOccurrences = emptyList()))
+        for (occurrence in store.occurrences()) {
+            store.removeOccurrence(occurrence.ruleID, occurrence.date)
+        }
+        for (standDown in plan.newOccurrences) store.save(standDown)
+        load()
+        notice = "Your record has been cleared. Counting begins today."
         rescheduleReminders()
     }
 
@@ -529,6 +589,8 @@ class AppState(
         if (practice.isPaused(rule)) {
             store.save(Activation(ruleID = rule.id, from = today))
         }
+        // A stale pause marker would make a later edit look like a pause.
+        markPaused(rule, false)
         load()
         rescheduleReminders()
     }

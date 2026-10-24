@@ -61,6 +61,9 @@ Item {
         cardMenu.band = bandOf(entry)
         cardMenu.kept = !!entry.kept
         cardMenu.dispensed = !!entry.dispensed
+        cardMenu.stoodDown = !!entry.stoodDown
+        cardMenu.afterPause = !!entry.afterPause
+        cardMenu.pausedOnPurpose = !!entry.pausedOnPurpose
         cardMenu.action = entry.action || "Open"
         cardMenu.glossarySlug = entry.glossarySlug || ""
         cardMenu.cardItem = card
@@ -614,7 +617,9 @@ Item {
                             width: 132
                             height: 232
                             radius: 22
-                            color: "#e8dfcd"
+                            property bool resting: !!modelData.paused || !!modelData.stoodDown
+                            color: resting ? "#d5d0c4" : "#e8dfcd"
+                            opacity: resting ? 0.6 : 1
                             Behavior on width {
                                 enabled: window.motionOn()
                                 NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
@@ -670,6 +675,8 @@ Item {
                             Rectangle {
                                 objectName: "completion-" + modelData.id
                                 z: 2
+                                visible: !modelData.afterPause
+                                opacity: card.resting ? 0.92 : 1
                                 x: parent.width - 31; y: 10
                                 width: 21; height: 21; radius: 11
                                 color: modelData.kept || modelData.dispensed ? home.gold : "transparent"
@@ -685,7 +692,7 @@ Item {
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    enabled: !modelData.dispensed
+                                    enabled: !modelData.dispensed && !modelData.afterPause
                                     onClicked: bridge.toggleKept(modelData.id)
                                 }
                             }
@@ -725,11 +732,13 @@ Item {
                                 x: 14
                                 y: card.expanded ? parent.height - 24 : 207
                                 visible: !card.flipped
-                                text: modelData.dispensed ? "Lifted Today"
+                                text: modelData.paused ? "Paused"
+                                     : modelData.dispensed ? "Lifted Today"
                                      : modelData.stoodDown ? "Stood Down"
                                      : modelData.time
-                                color: "#5f5b50"
+                                color: card.resting ? home.ink : "#5f5b50"
                                 font.pixelSize: 11
+                                font.weight: card.resting ? Font.DemiBold : Font.Normal
                             }
                             Label {
                                 objectName: "card-learn-" + modelData.id
@@ -867,10 +876,11 @@ Item {
         // A Label's implicitHeight ignores an explicit height, so the old
         // menuColumn.implicitHeight binding collapsed this rectangle to one
         // row and clicks below it hit the dismiss layer.
-        // Lifted or the day actions, then About This Rule when the rule has a
-        // term, then Edit. Pause is not on this menu.
-        readonly property int menuRows: (dispensed ? 1 : (kept ? 3 : 4))
-                + (glossarySlug.length > 0 ? 1 : 0) + 1
+        // Lifted, or the destination, then the day actions unless the day is
+        // after a pause. About when the rule has a term, then Edit, then Pause.
+        // Pause is always there. Choosing a ticked Pause takes the rule back.
+        readonly property int menuRows: (dispensed ? 1 : (afterPause ? 1 : (kept ? 3 : 4)))
+                + (glossarySlug.length > 0 ? 1 : 0) + 2
         width: 248
         height: menuRows * 32 + 12
         radius: 10
@@ -882,6 +892,9 @@ Item {
         property int band: -1
         property bool kept: false
         property bool dispensed: false
+        property bool stoodDown: false
+        property bool afterPause: false
+        property bool pausedOnPurpose: false
         property string action: ""
         property string glossarySlug: ""
         property var cardItem: null
@@ -934,7 +947,7 @@ Item {
             Item {
                 id: keptRow
                 objectName: "card-menu-kept"
-                visible: !cardMenu.dispensed
+                visible: !cardMenu.dispensed && !cardMenu.afterPause
                 y: actionRow.y + actionRow.height
                 width: parent.width
                 height: visible ? 32 : 0
@@ -958,7 +971,7 @@ Item {
             Item {
                 id: lateRow
                 objectName: "card-menu-late"
-                visible: !cardMenu.dispensed && !cardMenu.kept
+                visible: !cardMenu.dispensed && !cardMenu.kept && !cardMenu.afterPause
                 y: keptRow.y + keptRow.height
                 width: parent.width
                 height: visible ? 32 : 0
@@ -982,7 +995,7 @@ Item {
             Item {
                 id: standRow
                 objectName: "card-menu-stand"
-                visible: !cardMenu.dispensed
+                visible: !cardMenu.dispensed && !cardMenu.afterPause
                 y: lateRow.y + lateRow.height
                 width: parent.width
                 height: visible ? 32 : 0
@@ -990,7 +1003,7 @@ Item {
                     anchors.fill: parent
                     leftPadding: 10
                     verticalAlignment: Text.AlignVCenter
-                    text: "Stand Down for This Day"
+                    text: (cardMenu.stoodDown ? "\u2713  " : "") + "Stand Down for This Day"
                     color: home.parchment
                     font.pixelSize: 13
                 }
@@ -998,8 +1011,10 @@ Item {
                     anchors.fill: parent
                     onClicked: function(mouse) {
                         const id = cardMenu.ruleId
+                        const stood = cardMenu.stoodDown
                         home.hideMenu()
-                        bridge.standDownDay(id)
+                        if (stood) bridge.clearDay(id)
+                        else bridge.standDownDay(id)
                     }
                 }
             }
@@ -1047,6 +1062,31 @@ Item {
                         const id = cardMenu.ruleId
                         home.hideMenu()
                         home.cardRequested("editor", "", -1, id)
+                    }
+                }
+            }
+            Item {
+                id: pauseRow
+                objectName: "card-menu-pause"
+                y: editRow.y + editRow.height
+                width: parent.width
+                height: 32
+                Label {
+                    anchors.fill: parent
+                    leftPadding: 10
+                    verticalAlignment: Text.AlignVCenter
+                    text: (cardMenu.pausedOnPurpose ? "\u2713  " : "") + "Pause This Rule"
+                    color: home.parchment
+                    font.pixelSize: 13
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        const id = cardMenu.ruleId
+                        const paused = cardMenu.pausedOnPurpose
+                        home.hideMenu()
+                        if (paused) bridge.resumeRule(id)
+                        else bridge.pauseRule(id)
                     }
                 }
             }

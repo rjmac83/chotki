@@ -2,7 +2,7 @@
 
 ## Current state — 3 October 2026
 
-Android is 1.0 beta, build 31. The Kotlin core and Compose interface are implemented; the older planning discussion below records the port's original decisions. Shared text is exported from Swift and checked for parity. Home uses the approved 365-image Mac library through generated WebP assets. A named church supplies calendar and tradition; no affiliation follows OCA on the New Calendar while older saved churches remain unchanged.
+Android is 1.0 beta, build 32. The Kotlin core and Compose interface are implemented; the older planning discussion below records the port's original decisions. Shared text is exported from Swift and checked for parity. Home uses the approved 365-image Mac library through generated WebP assets. A named church supplies calendar and tradition; no affiliation follows OCA on the New Calendar while older saved churches remain unchanged.
 
 ## Portable image packaging
 

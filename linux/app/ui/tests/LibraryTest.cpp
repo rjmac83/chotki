@@ -192,7 +192,7 @@ private slots:
         editorScroll = findItem(session->window->contentItem(), "editor-scroll");
         QVERIFY(editorScroll);
         click(session->window, editorScroll, findItem(session->window->contentItem(), "editor-pause"));
-        // A pause covers today, inclusive. The next day is where Home shows only the rule left running.
+        // A pause covers today, inclusive. The next day still lists the paused rule.
         QTRY_COMPARE_WITH_TIMEOUT(session->bridge->entries().size(), 2, 8000);
         QCOMPARE(entryField(session->bridge.get(), "Morning prayers", "time"), QString("08:00"));
         QCOMPARE(entryField(session->bridge.get(), "Evening prayers", "time"), QString("21:30"));
@@ -208,11 +208,13 @@ private slots:
                                  && day->isVisible() && day->width() > 0, 3000);
         clickAt(session->window, day);
         QTRY_COMPARE_WITH_TIMEOUT(session->bridge->selectedDate(), tomorrow.toString(Qt::ISODate), 4000);
-        QTRY_COMPARE_WITH_TIMEOUT(session->bridge->entries().size(), 1, 8000);
+        QTRY_COMPARE_WITH_TIMEOUT(session->bridge->entries().size(), 2, 8000);
         QCOMPARE(entryField(session->bridge.get(), "Morning prayers", "time"), QString("08:00"));
-        QCOMPARE(entryField(session->bridge.get(), "Evening prayers", "title"), QString());
+        QCOMPARE(entryField(session->bridge.get(), "Evening prayers", "paused"), QString("true"));
+        QCOMPARE(entryField(session->bridge.get(), "Evening prayers", "afterPause"), QString("true"));
         QTRY_VERIFY_WITH_TIMEOUT(showsExactText(session->window->contentItem(), "Morning prayers"), 3000);
-        QVERIFY(!showsExactText(session->window->contentItem(), "Evening prayers"));
+        QVERIFY(showsExactText(session->window->contentItem(), "Evening prayers"));
+        QVERIFY(showsExactText(session->window->contentItem(), "Paused"));
         QVERIFY(showsExactText(session->window->contentItem(), "08:00"));
     }
 };

@@ -23,6 +23,8 @@ Item {
         event.accepted = true
     }
 
+    property bool confirmingReset: false
+
     Component.onCompleted: bridge.showProgress()
 
     Flickable {
@@ -51,7 +53,35 @@ Item {
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
                 topPadding: 8
-                bottomPadding: 8
+                bottomPadding: 4
+            }
+
+            Label {
+                objectName: "progress-reset"
+                x: 24
+                text: "Reset record"
+                color: progress.muted
+                font.pixelSize: 14
+                topPadding: 4
+                bottomPadding: 4
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    onClicked: progress.confirmingReset = true
+                }
+            }
+
+            Label {
+                objectName: "progress-notice"
+                x: 24
+                width: column.width - 48
+                visible: (bridge.progressNotice || "").length > 0
+                text: bridge.progressNotice || ""
+                wrapMode: Text.WordWrap
+                color: progress.parchment
+                font.pixelSize: 14
+                topPadding: 2
+                bottomPadding: 6
             }
 
             Repeater {
@@ -148,11 +178,70 @@ Item {
             blocking: true
             onWheel: function(event) { progress.roll(event) }
         }
+
         EdgeFade {
             y: reportScroll.contentY
             width: reportScroll.width
             height: reportScroll.height
             z: 8
+        }
+    }
+
+    Rectangle {
+        objectName: "progress-reset-confirm"
+        visible: progress.confirmingReset
+        anchors.fill: parent
+        z: 20
+        color: "#cc101218"
+        MouseArea { anchors.fill: parent }
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(420, parent.width - 48)
+            spacing: 12
+            Label {
+                objectName: "progress-reset-title"
+                width: parent.width
+                text: "Are you sure?"
+                color: progress.parchment
+                font.pixelSize: 18
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                objectName: "progress-reset-message"
+                width: parent.width
+                text: "This will completely erase your record and cannot be undone."
+                color: progress.parchment
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+            }
+            Row {
+                spacing: 18
+                Label {
+                    objectName: "progress-reset-yes"
+                    text: "Yes"
+                    color: progress.gold
+                    font.pixelSize: 15
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        onClicked: {
+                            progress.confirmingReset = false
+                            bridge.resetRecord()
+                        }
+                    }
+                }
+                Label {
+                    objectName: "progress-reset-cancel"
+                    text: "Cancel"
+                    color: progress.muted
+                    font.pixelSize: 15
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        onClicked: progress.confirmingReset = false
+                    }
+                }
+            }
         }
     }
 

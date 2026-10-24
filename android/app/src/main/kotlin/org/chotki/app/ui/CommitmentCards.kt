@@ -37,13 +37,15 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.contentDescription
@@ -91,7 +93,9 @@ internal fun Commitments(
     entries: List<DayEntry>,
     clock: ClockStyle,
     glossary: Glossary,
-    isPaused: (Rule) -> Boolean,
+    isOnPause: (DayEntry) -> Boolean,
+    pausedOnPurpose: (Rule) -> Boolean,
+    afterPause: (DayEntry) -> Boolean,
     onToggle: (DayEntry) -> Unit,
     onReadPrayers: (DayEntry) -> Unit,
     onReadReading: (Int?) -> Unit,
@@ -101,6 +105,7 @@ internal fun Commitments(
     onEdit: (DayEntry) -> Unit,
     onMarkKeptLate: (DayEntry) -> Unit,
     onStandDown: (DayEntry) -> Unit,
+    onClear: (DayEntry) -> Unit,
     onPause: (DayEntry) -> Unit,
     onResume: (DayEntry) -> Unit,
     onOpenLibrary: () -> Unit,
@@ -116,13 +121,16 @@ internal fun Commitments(
                 entry = entry,
                 clock = clock,
                 glossary = glossary,
-                isPaused = isPaused(entry.rule),
+                isOnPause = isOnPause(entry),
+                pausedOnPurpose = pausedOnPurpose(entry.rule),
+                afterPause = afterPause(entry),
                 onToggle = { onToggle(entry) },
                 onOpen = { openCommitment(entry, onReadPrayers, onReadReading, onReadPsalter, onGoToRope) },
                 onOpenTerm = onOpenTerm,
                 onEdit = { onEdit(entry) },
                 onMarkKeptLate = { onMarkKeptLate(entry) },
                 onStandDown = { onStandDown(entry) },
+                onClear = { onClear(entry) },
                 onPause = { onPause(entry) },
                 onResume = { onResume(entry) },
                 onReadPrayers = { onReadPrayers(entry) },
@@ -201,13 +209,16 @@ private fun CommitmentCard(
     entry: DayEntry,
     clock: ClockStyle,
     glossary: Glossary,
-    isPaused: Boolean,
+    isOnPause: Boolean,
+    pausedOnPurpose: Boolean,
+    afterPause: Boolean,
     onToggle: () -> Unit,
     onOpen: () -> Unit,
     onOpenTerm: (String) -> Unit,
     onEdit: () -> Unit,
     onMarkKeptLate: () -> Unit,
     onStandDown: () -> Unit,
+    onClear: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onReadPrayers: () -> Unit,
@@ -225,6 +236,7 @@ private fun CommitmentCard(
         label = "commitment-flip",
     )
     val showBack = turn > 90f
+    val resting = isOnPause || entry.isStoodDown
 
     Box(Modifier.size(CardWidth, CardHeight)) {
         Box(
@@ -232,7 +244,7 @@ private fun CommitmentCard(
                 .fillMaxSize()
                 .shadow(10.dp, CardShape)
                 .clip(CardShape)
-                .background(Chotki.parchment)
+                .background(if (resting) Color(0xFFD5D0C4) else Chotki.parchment)
                 .combinedClickable(
                     onClick = {
                         if (fasting) flipped = !flipped else onOpen()
@@ -243,6 +255,10 @@ private fun CommitmentCard(
                 .graphicsLayer {
                     rotationY = if (showBack) turn - 180f else turn
                     cameraDistance = 16f * density
+                    if (resting) {
+                        alpha = 0.6f
+                        colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+                    }
                 },
         ) {
             if (showBack) {
@@ -255,6 +271,7 @@ private fun CommitmentCard(
                 CardFace(
                     entry = entry,
                     clock = clock,
+                    onPause = isOnPause,
                     onOpenTerm = onOpenTerm,
                     givenBy = if (entry.rule.givenByPriest == true) givenBy else null,
                 )
@@ -262,29 +279,27 @@ private fun CommitmentCard(
         }
 
         // Drawn after the face, and not inside it, so a tap here never opens
-        // the section and never turns the card over.
-        if (!showBack) {
+        // the section and never turns the card over. A day after a pause was
+        // never asked, so there is no circle to tick.
+        if (!showBack && !afterPause) {
             Mark(
                 title = entry.rule.title,
                 on = entry.showsAsSatisfied,
-                // A day the Church has lifted was never asked. The circle shows
-                // that, and does not pretend it can be ticked or unticked.
                 enabled = !entry.isDispensed,
                 onToggle = onToggle,
-                // Above the card face. The face fills the card and takes a tap
-                // of its own; without this the circle draws on top and the tap
-                // still lands on the card, which cannot take the mark off.
                 modifier = Modifier
                     .zIndex(1f)
                     .align(Alignment.TopEnd)
-                    .padding(top = 6.dp, end = 6.dp),
+                    .padding(top = 6.dp, end = 6.dp)
+                    .graphicsLayer { alpha = if (resting) 0.55f else 1f },
             )
         }
 
         RuleMenu(
             open = menuOpen,
             entry = entry,
-            isPaused = isPaused,
+            pausedOnPurpose = pausedOnPurpose,
+            afterPause = afterPause,
             onDismiss = { menuOpen = false },
             onReadPrayers = onReadPrayers,
             onReadReading = onReadReading,
@@ -293,6 +308,7 @@ private fun CommitmentCard(
             onToggle = onToggle,
             onMarkKeptLate = onMarkKeptLate,
             onStandDown = onStandDown,
+            onClear = onClear,
             onEdit = onEdit,
             onPause = onPause,
             onResume = onResume,
@@ -304,6 +320,7 @@ private fun CommitmentCard(
 private fun CardFace(
     entry: DayEntry,
     clock: ClockStyle,
+    onPause: Boolean,
     onOpenTerm: (String) -> Unit,
     givenBy: String?,
 ) {
@@ -366,14 +383,19 @@ private fun CardFace(
             }
         }
         val dispensation = entry.dispensation
-        if (dispensation != null) {
+        if (dispensation != null && !onPause) {
             Text("Not observed during $dispensation", color = Chotki.goldDim, fontSize = 11.sp, lineHeight = 14.sp)
-        } else if (entry.isStoodDown) {
-            Text("Stood down", color = CardFaint, fontSize = 11.sp)
+        }
+        val resting = onPause || entry.isStoodDown
+        val mark = when {
+            onPause -> "Paused"
+            entry.isStoodDown -> "Stood Down"
+            else -> null
         }
         Text(
-            text = rule.timeOfDay?.let { Format.time(it, clock) } ?: "All day",
-            color = CardFaint,
+            text = mark ?: (rule.timeOfDay?.let { Format.time(it, clock) } ?: "All day"),
+            color = if (resting) Ink else CardFaint,
+            fontWeight = if (resting) FontWeight.SemiBold else FontWeight.Normal,
             fontSize = 12.sp,
         )
     }
@@ -623,7 +645,8 @@ private fun DrawScope.lifeFigure(tint: Color, stroke: Stroke) {
 private fun RuleMenu(
     open: Boolean,
     entry: DayEntry,
-    isPaused: Boolean,
+    pausedOnPurpose: Boolean,
+    afterPause: Boolean,
     onDismiss: () -> Unit,
     onReadPrayers: () -> Unit,
     onReadReading: (Int?) -> Unit,
@@ -632,6 +655,7 @@ private fun RuleMenu(
     onToggle: () -> Unit,
     onMarkKeptLate: () -> Unit,
     onStandDown: () -> Unit,
+    onClear: () -> Unit,
     onEdit: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -673,30 +697,36 @@ private fun RuleMenu(
                 RuleReference.NONE -> Unit
             }
 
-            Item(
-                if (entry.isKept) "Clear this day" else "Mark as kept",
-                choosing(onToggle),
-            )
-            if (!entry.isKept) Item("Mark as kept, late", choosing(onMarkKeptLate))
-            Item("Stand down for this day", choosing(onStandDown))
+            if (!afterPause) {
+                Item(
+                    if (entry.isKept) "Clear this day" else "Mark as kept",
+                    choosing(onToggle),
+                )
+                if (!entry.isKept) Item("Mark as kept, late", choosing(onMarkKeptLate))
+                Item(
+                    "Stand down for this day",
+                    choosing { if (entry.isStoodDown) onClear() else onStandDown() },
+                    checked = entry.isStoodDown,
+                )
+            }
         }
 
         HorizontalDivider(color = Chotki.lineSoft)
         Item("Edit rule\u2026", choosing(onEdit))
-        if (isPaused) {
-            Item("Resume this rule", choosing(onResume))
-        } else {
-            Item("Pause this rule", choosing(onPause))
-        }
+        Item(
+            "Pause this rule",
+            choosing { if (pausedOnPurpose) onResume() else onPause() },
+            checked = pausedOnPurpose,
+        )
     }
 }
 
 @Composable
-private fun Item(label: String, onClick: () -> Unit) {
+private fun Item(label: String, onClick: () -> Unit, checked: Boolean = false) {
     DropdownMenuItem(
         text = {
             Text(
-                label,
+                if (checked) "\u2713  $label" else label,
                 color = Chotki.parchment,
                 fontSize = 15.sp,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,

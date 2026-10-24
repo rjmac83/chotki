@@ -30,10 +30,10 @@ android {
         // essentially every device in use. The test device runs 13.
         minSdk = 26
         targetSdk = 37
-        // 1.0 beta, build 29. versionCode must stay above every apk already
-        // handed out, including the local build 28.
-        versionCode = 31
-        versionName = "1.0 beta, build 31"
+        // 1.0 beta, build 32. versionCode must stay above every apk already
+        // handed out, including the local build 31.
+        versionCode = 32
+        versionName = "1.0 beta, build 32"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

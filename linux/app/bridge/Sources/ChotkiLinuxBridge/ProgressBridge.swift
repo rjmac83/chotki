@@ -5,7 +5,29 @@ import Foundation
 // The window paints them. Today is outside the report, and a stood-down day
 // is already out of both sides of the count.
 
-func performProgress(_ request: BridgeRequest, store: SQLiteStore) throws {
+func resetRecord(_ store: SQLiteStore) throws {
+    let today = CalendarDate(Date(), in: .current)
+    let settings = try store.loadSettings() ?? .default
+    let rules = try store.rules(includeArchived: false)
+    let activations = try store.activations(ruleID: nil)
+    let plan = RecordReset().plan(
+        rules: rules, activations: activations,
+        pausedRuleIDs: Set(settings.pausedRuleIDs), today: today
+    )
+    // Stretches first. The history goes only once they are cut.
+    var stretchesOnly = plan
+    stretchesOnly.newOccurrences = []
+    try store.apply(stretchesOnly)
+    for occurrence in try store.occurrences(ruleID: nil, from: nil, through: nil) {
+        try store.removeOccurrence(ruleID: occurrence.ruleID, date: occurrence.date)
+    }
+    for standDown in plan.newOccurrences {
+        try store.save(standDown)
+    }
+    eraseAutomaticBackups()
+}
+
+func performProgress(_ request: BridgeRequest, store: SQLiteStore, notice: String? = nil) throws {
     let days = request.days ?? 30
     guard (1...366).contains(days) else { throw BridgeError.invalidRequest }
     let today = CalendarDate(Date(), in: .current)
@@ -36,7 +58,8 @@ func performProgress(_ request: BridgeRequest, store: SQLiteStore) throws {
             )
         },
         figure: figure,
-        figureNote: figure.map { _ in "Kept, over the \(days) days to then" }
+        figureNote: figure.map { _ in "Kept, over the \(days) days to then" },
+        notice: notice
     )
     respond(BridgeSuccess(v: bridgeProtocolVersion, id: request.id, progress: payload))
 }

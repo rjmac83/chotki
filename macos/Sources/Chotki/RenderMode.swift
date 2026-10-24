@@ -158,6 +158,18 @@ enum RenderMode {
             )
             model.selectedDate = renderDate ?? CalendarDate(year: 2026, month: 8, day: 19)!
             model.visibleMonth = model.selectedDate
+            // `CHOTKI_RENDER_RESTING=1` sets two fictional rules aside, so the
+            // greyed cards can be looked at: one paused, one stood down for the
+            // day drawn. Pair it with a CHOTKI_RENDER_DATE of today (the pause
+            // day) or of the day after (a paused rule on a day it is not due).
+            if ProcessInfo.processInfo.environment["CHOTKI_RENDER_RESTING"] == "1" {
+                if let paused = model.rules.first(where: { $0.title == "Evening prayers" }) {
+                    model.standDown(paused)
+                }
+                if let stoodDown = model.rules.first(where: { $0.title == "The Jesus Prayer" }) {
+                    model.setStatus(.skipped, for: stoodDown, on: model.selectedDate)
+                }
+            }
             try? model.liturgical.loadSnapshot(around: model.selectedDate)
 
             let size = NSSize(width: 1100, height: 860)
@@ -178,6 +190,23 @@ enum RenderMode {
             }
 
             shot("window-home") { }
+            // `CHOTKI_RENDER_PAUSE_AFTER=1` pauses a rule after the first draw, as
+            // choosing "Pause This Rule" does, and draws again: a card that is
+            // greyed only when the rule is paused before the window first draws
+            // is the bug this exists to catch.
+            if ProcessInfo.processInfo.environment["CHOTKI_RENDER_PAUSE_AFTER"] == "1" {
+                // Through the card's own menu closure, as a right click does,
+                // rather than by calling the model: the closure is what was
+                // captured when the card last drew.
+                func surfaces(in view: NSView) -> [RuleCardInteraction.Surface] {
+                    (view as? RuleCardInteraction.Surface).map { [$0] } ?? []
+                        + view.subviews.flatMap(surfaces(in:))
+                }
+                shot("window-home-paused-after") {
+                    surfaces(in: host).first { $0.title == "Evening prayers" }?
+                        .menuActions.first { $0.title == "Pause This Rule" }?.perform()
+                }
+            }
             if ProcessInfo.processInfo.environment["CHOTKI_RENDER_SETTLED_IMAGE"] == "1" {
                 // The render flag selects the same resting crop immediately,
                 // avoiding a minute-long render while leaving daily timing

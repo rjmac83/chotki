@@ -179,3 +179,24 @@ dropped from the test without also being dropped from here.
 ## Calendar refresh (added 6 October 2026)
 - [ ] **By 31 December 2030:** ship a build whose bundled calendar runs past 2031 (the shipped one ends
       2031-12-31). See `core/Tools/CALENDAR.md`. Run `core/Tools/accuracy-check.py` before every release.
+
+## Pause, stand down, and Reset record — due on every other platform (added 24 October 2026)
+
+**Done on macOS, Android, and Linux.** iOS must still follow (Windows too, if its port has reached the day's cards).
+
+What macOS now does, which the others must match (core is the specification; the Kotlin port needs the same decisions and tests):
+
+- **Greyed, marked cards.** A paused rule stays on Home, greyed and marked "Paused", on the days it would have fallen; a day stood down is greyed and marked "Stood Down". "Pause This Rule" and "Stand Down for This Day" are ticked items in the right-click / long-press menu, and choosing a ticked one undoes it. "Resume This Rule" is no longer a separate item.
+- **Core additions.** `AppSettings.pausedRuleIDs` (optional, no migration), `Practice.pauseDay(of:)`, `isOnPause(_:on:)`, `isPausedAndNotAsked(_:on:)`, `pausedEntries(on:)`, `entriesIncludingPaused(on:)`, `rulesNotOnPause(on:)`, `pausePlan(for:on:)`, `standDownLiftedOnResume(for:on:)`, `RecordReset`.
+- **What a pause does to the record.** Days before the pause stay as recorded. The day it is paused counts if it was kept; if it was due and nothing was recorded, pausing stands that day down, so it can never read as a miss. Days between pausing and taking it back are outside the stretch and are never counted. The day it is taken back, and every day after, counts. Pausing and undoing on the same day leaves the day as it was. A paused rule is not reminded of and does not keep a day from being settled.
+- **Reset record.** A quiet button with a reset icon beside "Open in a window" on the Progress view. It asks "Are you sure?" with "This will completely erase your record and cannot be undone." and Yes / Cancel. It erases every recorded day, starts every rule in force again from today (so nothing in the past can read as a miss), keeps a paused rule paused, drops rules that had only ended, and deletes the automatic backups so "cannot be undone" is true. Backups the person exported themselves are not touched.
+
+Per platform:
+
+- [x] **macOS** (build 34)
+- [x] **Android** (1.0 beta, build 32): core additions and tests; greyed card; ticked Pause / Stand Down; Reset record
+- [ ] **iOS:** the same
+- [x] **Linux** (1.0 beta, package 1.0~beta): the same
+- [ ] **Windows:** the same, if the port has reached the day's cards
+
+`PortParityTests.everyPlatformOffersTheSameActions` still expects "Resume this rule" on iOS. macOS and Android resume from the ticked Pause item.

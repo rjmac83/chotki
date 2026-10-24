@@ -287,6 +287,211 @@ struct PausingTests {
         #expect(!model.entries(on: model.today).isEmpty,
                 "standing down in the evening still counts today")
     }
+
+    @Test("a paused rule stays on Home, set apart from what is due, until it is taken back")
+    func pausedRuleStaysOnHome() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Jesus prayer", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        let tomorrow = model.today.adding(days: 1)
+
+        model.standDown(rule)
+
+        #expect(model.isPausedOnPurpose(rule))
+        #expect(model.isOnPause(rule, on: model.today), "greyed from the day it was paused")
+        #expect(model.entries(on: tomorrow).isEmpty, "nothing is due, so nothing is asked")
+        #expect(model.entriesIncludingPaused(on: tomorrow).map(\.rule.id) == [rule.id])
+
+        model.resume(rule)
+
+        #expect(!model.isPausedOnPurpose(rule))
+        #expect(!model.isOnPause(rule, on: tomorrow))
+        #expect(model.entries(on: tomorrow).map(\.rule.id) == [rule.id])
+        #expect(model.settings.pausedRuleIDs.isEmpty, "nothing is left marked")
+    }
+
+    @Test("taking a paused rule back through the library clears the pause")
+    func libraryTakesItBack() throws {
+        let model = try makeModel()
+        let template = try #require(RuleLibrary.shared.template(id: "evening-prayers"))
+        model.take(on: template)
+        let rule = try #require(model.rules.first { $0.title == "Evening prayers" })
+
+        model.standDown(rule)
+        #expect(model.isPausedOnPurpose(rule))
+
+        model.prepare(template)
+
+        #expect(!model.isPausedOnPurpose(rule))
+        #expect(model.settings.pausedRuleIDs.isEmpty)
+    }
+
+    @Test("a rule ended from today on is not shown as paused, and cannot be paused")
+    func endedRuleIsNotPaused() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Almsgiving", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        model.delete(rule, scope: .thisAndFuture)
+        let tomorrow = model.today.adding(days: 1)
+
+        #expect(!model.isPausedOnPurpose(rule))
+        #expect(model.entriesIncludingPaused(on: tomorrow).isEmpty,
+                "ending a rule leaves no greyed copy behind")
+
+        model.standDown(rule)
+
+        #expect(model.settings.pausedRuleIDs.isEmpty, "there was nothing to pause")
+        #expect(model.entriesIncludingPaused(on: tomorrow).isEmpty)
+    }
+
+    @Test("standing a day down can be lifted again, and leaves the day as it was")
+    func standDownCanBeLifted() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        model.setStatus(.skipped, for: rule, on: model.today)
+        let stoodDown = try #require(model.entries(on: model.today).first)
+        #expect(stoodDown.isStoodDown)
+
+        model.clearOccurrence(stoodDown)
+
+        let restored = try #require(model.entries(on: model.today).first)
+        #expect(!restored.isStoodDown)
+        #expect(!restored.isKept)
+    }
+
+    /// What a right click does, driven through the card's own menu rather than
+    /// the model: the menu is where the tick and the undo live.
+    @Test("the card's menu ticks Pause and Stand Down, and choosing a ticked one undoes it")
+    func menuTogglesUndo() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        func menu() throws -> [RuleCardInteraction.MenuAction] {
+            let entry = try #require(model.entries(on: model.today).first { $0.rule.id == rule.id })
+            return EntryRow(model: model, entry: entry).menuActions
+        }
+        func item(_ title: String) throws -> RuleCardInteraction.MenuAction {
+            try #require(try menu().first { $0.title == title }, "no \"\(title)\" in the menu")
+        }
+
+        // Stand down for the day, then lift it.
+        #expect(try !item("Stand Down for This Day").isOn)
+        try item("Stand Down for This Day").perform()
+        #expect(try item("Stand Down for This Day").isOn, "ticked once stood down")
+        try item("Stand Down for This Day").perform()
+        #expect(try !item("Stand Down for This Day").isOn, "choosing it again lifts it")
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(!entry.isStoodDown && !entry.isKept)
+
+        // Pause the rule, then take it back.
+        #expect(try !item("Pause This Rule").isOn)
+        try item("Pause This Rule").perform()
+        #expect(try item("Pause This Rule").isOn, "ticked once paused")
+        #expect(model.isPausedOnPurpose(rule))
+        #expect(try menu().contains { $0.title == "Resume This Rule" } == false,
+                "resuming is unticking Pause, not a second item")
+        try item("Pause This Rule").perform()
+        #expect(try !item("Pause This Rule").isOn)
+        #expect(!model.isPausedOnPurpose(rule))
+    }
+
+    @Test("pausing a rule before keeping it stands the day down, so it can never read as a miss")
+    func pausingFirstIsNotAMiss() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        model.standDown(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(entry.isStoodDown, "the day it was paused is set aside, not left to be missed")
+        #expect(model.isOnPause(rule, on: model.today))
+        #expect(model.outstandingEntries(on: model.today).isEmpty, "a paused rule asks nothing more today")
+    }
+
+    @Test("pausing a rule already kept today leaves the day kept")
+    func pausingAfterKeepingKeepsIt() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        model.setStatus(.completed, for: rule, on: model.today)
+
+        model.standDown(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(entry.isKept && !entry.isStoodDown)
+    }
+
+    @Test("pausing and unpausing on the same day leaves the day exactly as it was")
+    func samedayUndo() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+
+        model.standDown(rule)
+        model.resume(rule)
+
+        let entry = try #require(model.entries(on: model.today).first)
+        #expect(!entry.isStoodDown && !entry.isKept, "back to due, nothing recorded")
+        #expect(!model.isOnPause(rule, on: model.today))
+    }
+}
+
+@Suite("Starting the record again")
+@MainActor
+struct ResetRecordTests {
+
+    @Test("a reset erases the history and counts from today, without turning the past into misses")
+    func resetStartsFromToday() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        // A fortnight of history, kept.
+        for back in 1...14 {
+            model.setStatus(.completed, for: rule, on: model.today.adding(days: -back))
+        }
+        #expect(!model.occurrences.isEmpty)
+
+        model.resetRecord()
+
+        #expect(model.occurrences.isEmpty, "everything that was kept is gone")
+        #expect(model.rules.map(\.id) == [rule.id], "the rule itself is untouched")
+        #expect(!model.isPaused(rule), "and still in force")
+        #expect(model.entries(on: model.today).map(\.rule.id) == [rule.id], "due today as before")
+        let report = model.report()
+        #expect(report.perRule.allSatisfy { $0.missed == 0 }, "no past day reads as missed")
+        #expect(report.overall == nil, "nothing has come due yet")
+    }
+
+    @Test("a paused rule is still paused after a reset, and still not counted")
+    func pausedRuleSurvives() throws {
+        let model = try makeModel()
+        model.save(Rule(title: "Evening prayers", recurrence: .daily), isNew: true)
+        let rule = try #require(model.rules.first)
+        model.standDown(rule)
+
+        model.resetRecord()
+
+        #expect(model.isPausedOnPurpose(rule))
+        #expect(model.isOnPause(rule, on: model.today))
+        #expect(model.report().perRule.allSatisfy { $0.missed == 0 })
+    }
+
+    @Test("a reset under test cannot reach anyone's real backups")
+    func backupsAreLeftAloneUnderTest() throws {
+        let model = try makeModel()    // writesBackups is false
+        model.save(Rule(title: "Morning prayers", recurrence: .daily), isNew: true)
+        let directory = try StoreLocation.backupsDirectory()
+        let before = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+
+        model.resetRecord()
+
+        let after = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        #expect(Set(before) == Set(after))
+    }
 }
 
 /// Shared content navigates by setting `model.screen`, which is the popover's

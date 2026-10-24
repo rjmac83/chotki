@@ -155,6 +155,7 @@ final class AppModel: ObservableObject {
         }
 
         reload()
+        mayTouchBackups = writesBackups
         if writesBackups { writeAutomaticBackup() }
         if startsReminders { startDriver() }
         listenForActions()
@@ -327,6 +328,36 @@ final class AppModel: ObservableObject {
 
     func isPaused(_ rule: Rule) -> Bool { practice.isPaused(rule) }
 
+    /// What Home lists for a day: what is due, then the paused rules that would
+    /// have been, which are shown greyed so they can be taken back from there.
+    func entriesIncludingPaused(on date: CalendarDate) -> [DayEntry] {
+        practice.entriesIncludingPaused(on: date)
+    }
+
+    /// Whether the person paused this rule, as opposed to it having been closed
+    /// by an edit or by removing the rest of a series.
+    func isPausedOnPurpose(_ rule: Rule) -> Bool { practice.pauseDay(of: rule) != nil }
+
+    func isOnPause(_ rule: Rule, on date: CalendarDate) -> Bool {
+        practice.isOnPause(rule, on: date)
+    }
+
+    /// A day of a paused rule that was not asked of anyone: greyed, with nothing
+    /// to tick.
+    func isPausedAndNotAsked(_ rule: Rule, on date: CalendarDate) -> Bool {
+        practice.isPausedAndNotAsked(rule, on: date)
+    }
+
+    /// What is still outstanding on a day: not kept, not stood down, and not on
+    /// a rule the person has paused.
+    func outstandingEntries(on date: CalendarDate) -> [DayEntry] {
+        entries(on: date).filter {
+            !$0.isKept && !$0.isStoodDown && !practice.isOnPause($0.rule, on: $0.date)
+        }
+    }
+
+    func pauseDay(of rule: Rule) -> CalendarDate? { practice.pauseDay(of: rule) }
+
     /// Every rule for the day accounted for, with at least one actually kept.
     func dayIsSettled(_ date: CalendarDate) -> Bool { practice.isSettled(on: date) }
 
@@ -456,6 +487,7 @@ final class AppModel: ObservableObject {
             if practice.isPaused(rule) {
                 try store.save(Activation(ruleID: rule.id, from: today))
             }
+            markPaused(rule, false)
             reload()
             notice = "\(rule.title) is back on your rule. What you kept of it before is still counted."
         } catch {
@@ -501,11 +533,32 @@ final class AppModel: ObservableObject {
     }
 
     func standDown(_ rule: Rule) {
-        applyPlan(EditPlanner().pause(rule: rule, activations: activations, on: today))
+        // Only a rule that is in force can be paused. One already closed by an
+        // edit has nothing to pause, and marking it would put a second, greyed
+        // copy of it on the day.
+        guard !practice.isPaused(rule) else { return }
+        markPaused(rule, true)
+        applyPlan(practice.pausePlan(for: rule, on: today))
     }
 
     func resume(_ rule: Rule) {
+        // Paused and taken back the same day: the stand-down the pause wrote for
+        // the day goes with it, so the day is exactly as it was.
+        if let standDown = practice.standDownLiftedOnResume(for: rule, on: today) {
+            try? store.removeOccurrence(ruleID: standDown.ruleID, date: standDown.date)
+        }
+        markPaused(rule, false)
         applyPlan(EditPlanner().resume(rule: rule, on: today))
+    }
+
+    /// Remembers that the person paused a rule, or took it back. Without this a
+    /// rule closed by an edit is indistinguishable from one set aside.
+    private func markPaused(_ rule: Rule, _ paused: Bool) {
+        guard settings.pausedRuleIDs.contains(rule.id) != paused else { return }
+        update { settings in
+            settings.pausedRuleIDs.removeAll { $0 == rule.id }
+            if paused { settings.pausedRuleIDs.append(rule.id) }
+        }
     }
 
     func save(_ rule: Rule, isNew: Bool) {
@@ -566,6 +619,51 @@ final class AppModel: ObservableObject {
             }
         } catch {
             // A failed backup must never stop the app starting.
+        }
+    }
+
+    /// Whether this model may touch the automatic-backups folder. False under
+    /// test, so no test can ever reach a real person's copies.
+    private var mayTouchBackups = true
+
+    /// Starts the record again from today: the history is erased, every rule in
+    /// force begins again today, and a rule that was paused stays paused. See
+    /// `RecordReset` for why the stretches are cut as well.
+    ///
+    /// The automatic backups go too, because the person was told it cannot be
+    /// undone and a copy left behind would make that untrue. Anything they
+    /// exported themselves is theirs and is not touched.
+    func resetRecord() {
+        do {
+            let plan = RecordReset().plan(
+                rules: rules, activations: activations,
+                pausedRuleIDs: Set(settings.pausedRuleIDs), today: today
+            )
+            // The stretches first, and the history only once they are cut: a
+            // failure part-way then leaves a record that is merely still there,
+            // not one that has turned into a list of misses.
+            var stretchesOnly = plan
+            stretchesOnly.newOccurrences = []
+            try store.apply(stretchesOnly)
+            for occurrence in try store.occurrences(ruleID: nil, from: nil, through: nil) {
+                try store.removeOccurrence(ruleID: occurrence.ruleID, date: occurrence.date)
+            }
+            for standDown in plan.newOccurrences { try store.save(standDown) }
+            if mayTouchBackups { eraseAutomaticBackups() }
+            reload()
+            notice = "Your record has been cleared. Counting begins today."
+        } catch {
+            loadError = "Could not reset the record. \(error)"
+        }
+    }
+
+    private func eraseAutomaticBackups() {
+        guard let directory = try? StoreLocation.backupsDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil
+              ) else { return }
+        for file in files where file.lastPathComponent.hasPrefix("chotki-") && file.pathExtension == "json" {
+            try? FileManager.default.removeItem(at: file)
         }
     }
 
@@ -654,7 +752,7 @@ final class AppModel: ObservableObject {
         let driver = ReminderDriver(notifier: notifier) { [weak self] in
             guard let self else { return [] }
             return self.scheduler.plan(
-                rules: self.rules, activations: self.activations,
+                rules: self.practice.rulesNotOnPause(on: self.today), activations: self.activations,
                 occurrences: self.occurrences, on: self.today
             )
         }
@@ -775,7 +873,8 @@ final class AppModel: ObservableObject {
     }
 
     func markKept(_ entry: DayEntry) {
-        guard !entry.isKept, !entry.isDispensed, !entry.isStoodDown else { return }
+        guard !entry.isKept, !entry.isDispensed, !entry.isStoodDown,
+              !practice.isOnPause(entry.rule, on: entry.date) else { return }
         toggleKept(entry)
     }
 

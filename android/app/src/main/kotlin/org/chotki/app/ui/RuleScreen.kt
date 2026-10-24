@@ -60,7 +60,7 @@ fun RuleScreen(
     /** The glossary, opened at the entry that explains this rule. */
     onOpenTerm: (String) -> Unit = {},
 ) {
-    val entries = state.entries(state.selectedDate)
+    val entries = state.entriesIncludingPaused(state.selectedDate)
 
     // Held here rather than inside the calendar, and deliberately not derived
     // from the scroll position any more. It used to fold the moment the rules
@@ -161,7 +161,9 @@ fun RuleScreen(
                         entries = entries,
                         clock = state.settings.clockStyle,
                         glossary = glossary,
-                        isPaused = { state.isPaused(it) },
+                        isOnPause = { state.isOnPause(it.rule, it.date) },
+                        pausedOnPurpose = { state.isPausedOnPurpose(it) },
+                        afterPause = { state.isPausedAndNotAsked(it.rule, it.date) },
                         onToggle = { state.toggleKept(it) },
                         onReadPrayers = onReadPrayers,
                         onReadReading = onReadReading,
@@ -171,6 +173,7 @@ fun RuleScreen(
                         onEdit = onEdit,
                         onMarkKeptLate = { state.markKeptLate(it) },
                         onStandDown = { state.standDown(it) },
+                        onClear = { state.clearOccurrence(it) },
                         onPause = { state.pause(it.rule) },
                         onResume = { state.resume(it.rule) },
                         onOpenLibrary = onOpenLibrary,

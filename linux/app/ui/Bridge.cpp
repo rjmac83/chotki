@@ -248,6 +248,10 @@ void Bridge::markKeptLate(const QString &ruleID) {
     send("markKeptLate", QJsonObject{{"ruleID", ruleID}});
 }
 
+void Bridge::clearDay(const QString &ruleID) {
+    send("clearDay", QJsonObject{{"ruleID", ruleID}});
+}
+
 void Bridge::standDownDay(const QString &ruleID) {
     send("standDownDay", QJsonObject{{"ruleID", ruleID}});
 }
@@ -305,6 +309,8 @@ void Bridge::finishPsalter() { send("finishPsalter"); }
 void Bridge::showLibrary(const QString &query) { send("library", QJsonObject{{"query", query}}); }
 
 void Bridge::showProgress() { send("progress"); }
+
+void Bridge::resetRecord() { send("resetRecord"); }
 
 void Bridge::showGlossary(const QString &slug, const QString &query) {
     QJsonObject fields;
@@ -540,6 +546,7 @@ void Bridge::applyProgress(const QJsonObject &progress) {
         m_progressFigure.clear();
         m_progressFigureNote.clear();
     }
+    m_progressNotice = progress.value("notice").toString();
     m_progressReady = true;
 }
 

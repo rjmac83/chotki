@@ -10,6 +10,8 @@
 - Treat the tray as an optional enhancement. GNOME may not expose it without an extension, so reminders, settings, navigation, and Quit must all be reachable from the main window.
 - Keep a Linux alpha label independent of the macOS release label. Do not publish until the final acceptance gate passes.
 
+On 2026-10-24 the version string became 1.0 beta. The package version is 1.0~beta. It does not follow the macOS build number. The sentence above is the earlier decision; the version string is what changed. This build is not published, and it is not a Flatpak.
+
 ## Phase 0 — Feasibility spike and decisions
 
 **Result (2026-10-07):** A Qt 6.10.2/QML window ran on Ubuntu 26.04.1 ARM64 and exchanged JSON requests with a persistent Swift 6.4 process importing canonical `ChotkiCore`. It displayed a core date calculation and Psalm 1 from the core bundle, saved a synthetic value through `SQLiteStore`, received a structured error, and read the saved value after relaunch. The Qt window was visually inspected and clicked in UTM; shutdown now closes the helper cleanly. The canonical core suite passed all 453 tests on the VM once its cross-platform reference paths were linked into the isolated test workspace. Source and reproduction steps are in [`spike/README.md`](spike/README.md). The bridge is feasible as a long-lived helper process, with protocol versioning and recovery left for Phase 1.

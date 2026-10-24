@@ -101,6 +101,14 @@ data class AppSettings(
      * The property default stays null so a missing key is not read as "no church".
      */
     val affiliation: Affiliation? = null,
+    /**
+     * Rules the person paused on purpose.
+     *
+     * Empty when nothing is paused. A missing key on an older record is the
+     * same as empty: closing a stretch by an edit is not a pause, and only
+     * this list says which closed stretches were.
+     */
+    val pausedRuleIDs: List<@Serializable(with = UuidSerializer::class) java.util.UUID> = emptyList(),
 ) {
     /**
      * How a rule says it was given, once a name is stored.
