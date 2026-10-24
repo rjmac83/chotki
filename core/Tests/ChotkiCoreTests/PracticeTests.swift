@@ -194,3 +194,126 @@ struct PracticeTests {
         #expect(Practice.progressThrough(today: today) == day(2026, 8, 18))
     }
 }
+
+/// Paused rules stay on Home, greyed, so the person can take one back from the
+/// place they paused it. Nothing here may change what is due, settled or scored.
+@Suite("A rule that has been paused")
+struct PausedRuleTests {
+
+    private let monday = day(2026, 8, 17)
+
+    private func daily(_ title: String = "Evening prayers") -> Rule {
+        Rule(title: title, recurrence: .daily)
+    }
+
+    /// A rule that was in force from the start of the year and closed on `end`.
+    private func practice(
+        _ rule: Rule, closedOn end: CalendarDate?, markedPaused: Bool,
+        extra: [Activation] = [], occurrences: [Occurrence] = []
+    ) -> Practice {
+        var settings = AppSettings.default
+        if markedPaused { settings.pausedRuleIDs = [rule.id] }
+        return Practice(
+            rules: [rule],
+            activations: [Activation(ruleID: rule.id, from: day(2026, 1, 1), to: end)] + extra,
+            occurrences: occurrences,
+            settings: settings,
+            liturgical: Calendar2026()
+        )
+    }
+
+    @Test("the day it was paused still counts, and is the first day shown as paused")
+    func pauseDayIsInclusive() {
+        let rule = daily()
+        let p = practice(rule, closedOn: monday, markedPaused: true)
+        #expect(p.pauseDay(of: rule) == monday)
+        #expect(p.entries(on: monday).map(\.rule.id) == [rule.id])
+        #expect(p.isOnPause(rule, on: monday))
+        #expect(!p.isOnPause(rule, on: monday.adding(days: -1)))
+    }
+
+    @Test("later days show the paused rule, apart from the days that are due")
+    func laterDaysShowIt() {
+        let rule = daily()
+        let p = practice(rule, closedOn: monday, markedPaused: true)
+        let tuesday = monday.adding(days: 1)
+        #expect(p.entries(on: tuesday).isEmpty)
+        #expect(p.pausedEntries(on: tuesday).map(\.rule.id) == [rule.id])
+        #expect(p.entriesIncludingPaused(on: tuesday).map(\.rule.id) == [rule.id])
+        // Not on the pause day itself: that is an ordinary entry, shown once.
+        #expect(p.pausedEntries(on: monday).isEmpty)
+        #expect(p.entriesIncludingPaused(on: monday).count == 1)
+    }
+
+    @Test("a paused rule shows only on the days it would have fallen")
+    func followsItsPattern() {
+        let rule = Rule(title: "Wednesday fast", recurrence: .weekly(days: [.wednesday]))
+        let p = practice(rule, closedOn: monday, markedPaused: true)
+        #expect(p.pausedEntries(on: day(2026, 8, 18)).isEmpty)          // Tuesday
+        #expect(p.pausedEntries(on: day(2026, 8, 19)).count == 1)       // Wednesday
+    }
+
+    @Test("paused entries are never asked of anyone")
+    func neverCountedAsDue() {
+        let rule = daily()
+        // Monday was kept; the rule was paused that evening.
+        let p = practice(
+            rule, closedOn: monday, markedPaused: true,
+            occurrences: [Occurrence(ruleID: rule.id, date: monday, status: .completed)]
+        )
+        let tuesday = monday.adding(days: 1)
+        #expect(p.entries(on: tuesday).isEmpty)
+        #expect(!p.isSettled(on: tuesday))
+        // Days after the pause are neither kept nor missed.
+        let report = p.report(days: 4, today: tuesday.adding(days: 3), now: Date())
+        #expect(report.perRule.allSatisfy { $0.missed == 0 })
+    }
+
+    @Test("a rule closed by an edit or by ending the series is not shown as paused")
+    func onlyAnActualPauseCounts() {
+        let rule = daily()
+        // The same closed stretch, but the person never paused it.
+        let p = practice(rule, closedOn: monday, markedPaused: false)
+        #expect(p.pauseDay(of: rule) == nil)
+        #expect(!p.isOnPause(rule, on: monday.adding(days: 3)))
+        #expect(p.pausedEntries(on: monday.adding(days: 1)).isEmpty)
+    }
+
+    @Test("resuming clears it, even if the marker is left behind")
+    func resumedIsNotPaused() {
+        let rule = daily()
+        let resumed = Activation(ruleID: rule.id, from: monday.adding(days: 2))
+        let p = practice(rule, closedOn: monday, markedPaused: true, extra: [resumed])
+        #expect(p.pauseDay(of: rule) == nil)
+        #expect(p.pausedEntries(on: monday.adding(days: 3)).isEmpty)
+    }
+
+    @Test("a removed rule is not shown as paused")
+    func archivedRuleIsGone() {
+        var rule = daily()
+        rule.archivedAt = Date()
+        let p = practice(rule, closedOn: monday, markedPaused: true)
+        #expect(p.pauseDay(of: rule) == nil)
+        #expect(p.pausedEntries(on: monday.adding(days: 1)).isEmpty)
+    }
+
+    @Test("a record written before pausing was recorded decodes as having none")
+    func oldSettingsDecode() throws {
+        let old = try JSONEncoder().encode(AppSettings.default)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: old)
+        #expect(decoded.pausedRuleIDs.isEmpty)
+        // And a settings value that has never paused anything writes nothing new.
+        #expect(!String(decoding: old, as: UTF8.self).contains("pausedRuleIDs"))
+    }
+
+    @Test("the paused marker survives a round trip")
+    func markerRoundTrips() throws {
+        var settings = AppSettings.default
+        let id = UUID()
+        settings.pausedRuleIDs = [id]
+        let back = try JSONDecoder().decode(
+            AppSettings.self, from: JSONEncoder().encode(settings)
+        )
+        #expect(back.pausedRuleIDs == [id])
+    }
+}

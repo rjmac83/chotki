@@ -179,3 +179,15 @@ dropped from the test without also being dropped from here.
 ## Calendar refresh (added 6 October 2026)
 - [ ] **By 31 December 2030:** ship a build whose bundled calendar runs past 2031 (the shipped one ends
       2031-12-31). See `core/Tools/CALENDAR.md`. Run `core/Tools/accuracy-check.py` before every release.
+
+## Greyed, marked cards for paused and stood-down rules (added 24 October 2026)
+
+Done on **macOS** only. A paused rule stays on Home, greyed and marked "Paused", on the days it would have fallen; a day stood down is greyed and marked "Stood Down". Both are ticked items in the right-click menu, and choosing a ticked item undoes it.
+
+- [x] Core: `AppSettings.pausedRuleIDs` (optional, no migration), `Practice.pauseDay(of:)`, `isOnPause(_:on:)`, `pausedEntries(on:)`, `entriesIncludingPaused(on:)`
+- [x] macOS: greyed card, "Paused" / "Stood Down" mark, ticked menu items, no "Resume This Rule" item (it is the unticked "Pause This Rule")
+- [ ] **Android:** port the core additions and tests; grey the card; ticked Pause / Stand Down in the long-press menu
+- [ ] **iOS:** the same
+- [ ] **Windows:** the same, if the port has reached the day's cards
+
+Once mobile follows, `PortParityTests.everyPlatformOffersTheSameActions` can drop its macOS exception for "Resume this rule".

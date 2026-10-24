@@ -158,6 +158,18 @@ enum RenderMode {
             )
             model.selectedDate = renderDate ?? CalendarDate(year: 2026, month: 8, day: 19)!
             model.visibleMonth = model.selectedDate
+            // `CHOTKI_RENDER_RESTING=1` sets two fictional rules aside, so the
+            // greyed cards can be looked at: one paused, one stood down for the
+            // day drawn. Pair it with a CHOTKI_RENDER_DATE of today (the pause
+            // day) or of the day after (a paused rule on a day it is not due).
+            if ProcessInfo.processInfo.environment["CHOTKI_RENDER_RESTING"] == "1" {
+                if let paused = model.rules.first(where: { $0.title == "Evening prayers" }) {
+                    model.standDown(paused)
+                }
+                if let stoodDown = model.rules.first(where: { $0.title == "The Jesus Prayer" }) {
+                    model.setStatus(.skipped, for: stoodDown, on: model.selectedDate)
+                }
+            }
             try? model.liturgical.loadSnapshot(around: model.selectedDate)
 
             let size = NSSize(width: 1100, height: 860)

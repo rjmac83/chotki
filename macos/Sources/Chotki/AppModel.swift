@@ -327,6 +327,22 @@ final class AppModel: ObservableObject {
 
     func isPaused(_ rule: Rule) -> Bool { practice.isPaused(rule) }
 
+    /// What Home lists for a day: what is due, then the paused rules that would
+    /// have been, which are shown greyed so they can be taken back from there.
+    func entriesIncludingPaused(on date: CalendarDate) -> [DayEntry] {
+        practice.entriesIncludingPaused(on: date)
+    }
+
+    /// Whether the person paused this rule, as opposed to it having been closed
+    /// by an edit or by removing the rest of a series.
+    func isPausedOnPurpose(_ rule: Rule) -> Bool { practice.pauseDay(of: rule) != nil }
+
+    func isOnPause(_ rule: Rule, on date: CalendarDate) -> Bool {
+        practice.isOnPause(rule, on: date)
+    }
+
+    func pauseDay(of rule: Rule) -> CalendarDate? { practice.pauseDay(of: rule) }
+
     /// Every rule for the day accounted for, with at least one actually kept.
     func dayIsSettled(_ date: CalendarDate) -> Bool { practice.isSettled(on: date) }
 
@@ -456,6 +472,7 @@ final class AppModel: ObservableObject {
             if practice.isPaused(rule) {
                 try store.save(Activation(ruleID: rule.id, from: today))
             }
+            markPaused(rule, false)
             reload()
             notice = "\(rule.title) is back on your rule. What you kept of it before is still counted."
         } catch {
@@ -501,11 +518,27 @@ final class AppModel: ObservableObject {
     }
 
     func standDown(_ rule: Rule) {
+        // Only a rule that is in force can be paused. One already closed by an
+        // edit has nothing to pause, and marking it would put a second, greyed
+        // copy of it on the day.
+        guard !practice.isPaused(rule) else { return }
+        markPaused(rule, true)
         applyPlan(EditPlanner().pause(rule: rule, activations: activations, on: today))
     }
 
     func resume(_ rule: Rule) {
+        markPaused(rule, false)
         applyPlan(EditPlanner().resume(rule: rule, on: today))
+    }
+
+    /// Remembers that the person paused a rule, or took it back. Without this a
+    /// rule closed by an edit is indistinguishable from one set aside.
+    private func markPaused(_ rule: Rule, _ paused: Bool) {
+        guard settings.pausedRuleIDs.contains(rule.id) != paused else { return }
+        update { settings in
+            settings.pausedRuleIDs.removeAll { $0 == rule.id }
+            if paused { settings.pausedRuleIDs.append(rule.id) }
+        }
     }
 
     func save(_ rule: Rule, isNew: Bool) {

@@ -63,13 +63,16 @@ public struct Practice: Sendable {
             }
             return nil
         }
-        .sorted { a, b in
-            switch (a.rule.timeOfDay, b.rule.timeOfDay) {
-            case let (x?, y?): return x < y
-            case (nil, _?): return false
-            case (_?, nil): return true
-            case (nil, nil): return a.rule.title < b.rule.title
-            }
+        .sorted(by: Practice.isShownBefore)
+    }
+
+    /// Timed rules by hour, then those that run all day by title.
+    private static func isShownBefore(_ a: DayEntry, _ b: DayEntry) -> Bool {
+        switch (a.rule.timeOfDay, b.rule.timeOfDay) {
+        case let (x?, y?): return x < y
+        case (nil, _?): return false
+        case (_?, nil): return true
+        case (nil, nil): return a.rule.title < b.rule.title
         }
     }
 
@@ -87,6 +90,57 @@ public struct Practice: Sendable {
 
     public func isPaused(_ rule: Rule) -> Bool {
         !activations.contains { $0.ruleID == rule.id && $0.isOpen }
+    }
+
+    // MARK: paused rules
+
+    /// The day a rule the person paused was paused — inclusive, so it is the
+    /// last day the rule counted. Nil when the rule is in force, was never
+    /// paused on purpose, or has been removed.
+    ///
+    /// "No open stretch" is not enough. Editing a rule from today on, or
+    /// removing the rest of a series, also closes a stretch, and neither is a
+    /// pause; the marker in settings is what says the person paused it.
+    public func pauseDay(of rule: Rule) -> CalendarDate? {
+        guard settings.pausedRuleIDs.contains(rule.id), !rule.isArchived else { return nil }
+        let mine = activations.filter { $0.ruleID == rule.id }
+        guard !mine.isEmpty, !mine.contains(where: \.isOpen) else { return nil }
+        return mine.compactMap(\.to).max()
+    }
+
+    /// Whether a rule is on pause as seen from a day: paused now, and the day is
+    /// the one it was paused or later. The days before were kept as usual and
+    /// are shown as they were.
+    public func isOnPause(_ rule: Rule, on date: CalendarDate) -> Bool {
+        guard let paused = pauseDay(of: rule) else { return false }
+        return date >= paused
+    }
+
+    /// Paused rules on the days after the pause on which they would have fallen.
+    ///
+    /// Home lists what is due, so a paused rule would otherwise vanish the day
+    /// after it was paused, and with it the one place the person could take it
+    /// back. These are shown greyed. They are kept apart from `entries` on
+    /// purpose: nothing was asked of anyone on these days, so they must never
+    /// count towards a settled day, a reminder, or a score.
+    public func pausedEntries(on date: CalendarDate) -> [DayEntry] {
+        rules.compactMap { rule -> DayEntry? in
+            guard let paused = pauseDay(of: rule), date > paused else { return nil }
+            // Would it fall today, had it been in force? Asked of a stretch that
+            // covers only this day, so the rule's own pattern decides.
+            let hypothetical = [Activation(ruleID: rule.id, from: date, to: date)]
+            guard !engine.dueDates(
+                rule: rule, activations: hypothetical, from: date, through: date
+            ).isEmpty else { return nil }
+            return DayEntry(rule: rule, date: date, occurrence: nil, dispensation: nil)
+        }
+        .sorted(by: Practice.isShownBefore)
+    }
+
+    /// What Home shows for a day: the rules that are due, then the paused rules
+    /// that would have been, in one list in the usual order.
+    public func entriesIncludingPaused(on date: CalendarDate) -> [DayEntry] {
+        (entries(on: date) + pausedEntries(on: date)).sorted(by: Practice.isShownBefore)
     }
 
     // MARK: repairs

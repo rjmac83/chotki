@@ -69,6 +69,18 @@ public struct AppSettings: Sendable, Hashable, Codable {
     /// other and reads as a fortnight of failures — which the app must never be
     /// able to say. See `ScoringEngine.report`.
     public var reckoningChangedOn: CalendarDate?
+    /// The rules the person has paused, on purpose.
+    ///
+    /// A rule with no open stretch is not necessarily paused: editing one from
+    /// today on ends the old rule and starts a new one, and removing the rest of
+    /// a series closes it too. Neither is something the person set aside, and
+    /// neither should sit on the day greyed as "Paused". Only the act of pausing
+    /// writes here, and resuming or taking the rule back up clears it.
+    ///
+    /// Settings rather than a column on the rule: every key here is optional, so
+    /// a record or a backup written before this existed reads as having none,
+    /// and no database migration is needed.
+    public var pausedRuleIDs: [UUID] = []
 
     public init(
         jurisdiction: Jurisdiction = .default,
@@ -105,7 +117,7 @@ public struct AppSettings: Sendable, Hashable, Codable {
         case customCautionDismissed, jurisdiction, affiliation, observances, reminders
         case showOldStyleDates, showConsistencyNumber, launchAtLogin, showInDock
         case chimeOnCompletion, tickEachKnot, hasCompletedFirstRun, clockStyle
-        case reckoningChangedOn
+        case reckoningChangedOn, pausedRuleIDs
     }
 
     /// Every key optional, every absence a default.
@@ -151,6 +163,7 @@ public struct AppSettings: Sendable, Hashable, Codable {
         reckoningChangedOn = try container.decodeIfPresent(
             CalendarDate.self, forKey: .reckoningChangedOn
         )
+        pausedRuleIDs = try value(.pausedRuleIDs, [])
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -173,6 +186,11 @@ public struct AppSettings: Sendable, Hashable, Codable {
         try container.encode(hasCompletedFirstRun, forKey: .hasCompletedFirstRun)
         try container.encode(clockStyle, forKey: .clockStyle)
         try container.encodeIfPresent(reckoningChangedOn, forKey: .reckoningChangedOn)
+        // Written only when there is something to say, so a record that has
+        // never paused a rule is byte-for-byte what it was before.
+        if !pausedRuleIDs.isEmpty {
+            try container.encode(pausedRuleIDs, forKey: .pausedRuleIDs)
+        }
     }
 
     /// The church to show. Nil when they have said they have none.

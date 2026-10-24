@@ -416,7 +416,18 @@ struct PortParityTests {
             ("iOS", "ios/Chotki"),
         ] {
             let code = try tree(path)
+            // On the Mac, resuming is no longer a menu item of its own: "Pause
+            // this rule" carries a tick while the rule is paused, and choosing
+            // it again takes the rule back. The mobile platforms still say
+            // "Resume this rule" until they follow.
+            if platform == "macOS" {
+                #expect(
+                    code.contains("isOn: paused") && code.contains("model.resume("),
+                    "macOS must be able to resume a paused rule from its menu"
+                )
+            }
             for action in actions {
+                if platform == "macOS" && action == "Resume this rule" { continue }
                 #expect(
                     code.lowercased().contains(action.lowercased()),
                     "\(platform) does not offer \"\(action)\" anywhere — the Mac has it on every rule"
