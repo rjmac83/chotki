@@ -142,7 +142,8 @@ image = Image.open(sys.argv[1]).convert("RGBA")
 image.resize((size, size), Image.Resampling.LANCZOS).save(sys.argv[3])
 PY
 }
-for size in 48 64 128 256 512 1024; do
+# flatpak build-export rejects an icon larger than 512.
+for size in 48 64 128 256 512; do
     install -d "$payload/icons/hicolor/${size}x${size}/apps"
     resize_icon "$size" \
         "$payload/icons/hicolor/${size}x${size}/apps/org.chotki.Chotki.png"
