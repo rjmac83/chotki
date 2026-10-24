@@ -178,12 +178,23 @@ window="$work/files/lib/chotki/chotki-linux"
 player="$work/files/bin/chotki-play"
 file "$window" "$player" "$work/files/lib/chotki/ChotkiLinuxBridge" | tee /tmp/chotki-flatpak-file.txt
 test "$(grep -c "$file_marker" /tmp/chotki-flatpak-file.txt)" -eq 3
-flatpak build "$work" ldd /app/lib/chotki/chotki-linux | tee /tmp/chotki-flatpak-window-ldd.txt
-flatpak build "$work" ldd /app/bin/chotki-play | tee /tmp/chotki-flatpak-play-ldd.txt
-flatpak build "$work" sh -c \
-    'LD_LIBRARY_PATH=/app/lib/chotki/swift:/app/lib/chotki/compat:${LD_LIBRARY_PATH:-} ldd /app/lib/chotki/ChotkiLinuxBridge' \
-    | tee /tmp/chotki-flatpak-helper-ldd.txt
-if grep -q 'not found' /tmp/chotki-flatpak-window-ldd.txt /tmp/chotki-flatpak-play-ldd.txt /tmp/chotki-flatpak-helper-ldd.txt; then
+# The runtime has no ldd. A NEEDED soname must exist in the bundle or the runtime.
+missing=0
+check_needed() {
+    local binary="$1" extra="$2" soname
+    while IFS= read -r soname; do
+        [[ -n "$soname" ]] || continue
+        if find "$work/files" $extra "$runtime_files" -name "$soname" -print -quit | grep -q .; then
+            continue
+        fi
+        echo "Unresolved $soname from $binary" >&2
+        missing=1
+    done < <(readelf -d "$binary" | awk '/NEEDED/ { gsub(/[][]/, "", $NF); print $NF }')
+}
+check_needed "$window" ""
+check_needed "$player" ""
+check_needed "$work/files/lib/chotki/ChotkiLinuxBridge" "$work/files/lib/chotki/swift $work/files/lib/chotki/compat"
+if [[ "$missing" -ne 0 ]]; then
     echo "A Flatpak binary has an unresolved library" >&2
     exit 1
 fi

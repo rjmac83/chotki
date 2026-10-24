@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            binutils file curl ca-certificates \
+            binutils elfutils file curl ca-certificates \
             git gnupg2 libc6-dev libcurl4-openssl-dev libedit2 \
             libgcc-13-dev libpython3-dev libsqlite3-0 libstdc++-13-dev \
             libxml2-dev libncurses-dev libz3-dev pkg-config tzdata unzip zlib1g-dev \
